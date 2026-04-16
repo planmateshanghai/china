@@ -1,822 +1,943 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>플랜메이트 - 공유 맛집/관광지/호텔</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>플랜메이트 — 상하이 한국인 맛집</title>
+  <meta name="description" content="상하이 여행하는 한국인을 위한 맛집 추천 & 리뷰 플랫폼"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet"/>
+
+  <!-- ★ Firebase SDK (v10) ★ -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, orderBy, query, serverTimestamp }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getStorage, ref, uploadString, getDownloadURL }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+    // ╔══════════════════════════════════════════════╗
+    // ║  ★ 아래 YOUR_... 부분을 Firebase 설정으로 교체하세요 ★ ║
+    // ╚══════════════════════════════════════════════╝
+    // firebase.google.com → 프로젝트 → 설정 → 앱 추가(웹) → firebaseConfig 복사
+    const firebaseConfig = {
+      apiKey:            "AIzaSyACdsA_2ZcRzMMU1kOJRy2weWJQHpUIC6g",
+      authDomain:        "planmate-90eae.firebaseapp.com",
+      projectId:         "planmate-90eae",
+      storageBucket:     "planmate-90eae.firebasestorage.app",
+      messagingSenderId: "1021305342932",
+      appId:             "1:1021305342932:web:edd5a87de57d373fee2441"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    window._db      = getFirestore(app);
+    window._storage = getStorage(app);
+    window._fb      = { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, orderBy, query, serverTimestamp, ref, uploadString, getDownloadURL };
+    document.dispatchEvent(new Event('fbReady'));
+  </script>
+
   <style>
-    /* ========== 스타일 전체 (이전과 동일) ========== */
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Noto Sans KR', sans-serif; background: #f0f0f0; }
-    .app { max-width: 500px; margin: 0 auto; background: white; min-height: 100vh; position: relative; }
-    .header { background: #1B2D5B; padding: 16px; position: sticky; top: 0; z-index: 100; }
-    .logo-area { display: flex; justify-content: space-between; align-items: center; }
-    .logo-image { height: 42px; border-radius: 12px; object-fit: contain; }
-    .lang-badge { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 11px; color: #E2C97A; }
-    .search-bar { margin-top: 12px; display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,0.1); border-radius: 30px; padding: 4px 12px; }
-    .search-bar input { flex: 1; background: none; border: none; padding: 8px 0; color: white; font-size: 14px; outline: none; }
-    .search-bar input::placeholder { color: rgba(255,255,255,0.6); }
-    .search-bar button { background: none; border: none; color: white; font-size: 18px; cursor: pointer; padding: 4px; }
-    .nearby-btn { background: #C9A84C; color: #1B2D5B; border: none; border-radius: 20px; padding: 6px 12px; font-size: 12px; font-weight: bold; cursor: pointer; margin-left: 4px; }
-    .tabs { display: flex; background: white; border-bottom: 1px solid #eee; }
-    .tab { flex: 1; text-align: center; padding: 14px; cursor: pointer; font-weight: 500; color: #666; font-size: 14px; }
-    .tab.active { color: #1B2D5B; border-bottom: 2px solid #C9A84C; }
-    .panel { display: none; padding: 16px; min-height: 60vh; }
-    .panel.active { display: block; }
-    .rest-card { background: white; border-radius: 16px; padding: 14px; margin-bottom: 12px; display: flex; gap: 14px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: transform 0.1s; }
-    .rest-card:active { transform: scale(0.98); }
-    .rest-img { width: 70px; height: 70px; background: #F5EDD4; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 32px; overflow: hidden; flex-shrink: 0; }
-    .rest-img img { width: 100%; height: 100%; object-fit: cover; }
-    .rest-img i { font-size: 32px; color: #C9A84C; }
-    .rest-info { flex: 1; }
-    .rest-name { font-weight: 700; font-size: 16px; margin-bottom: 2px; }
-    .rest-name-sub { font-size: 12px; color: #1B2D5B; margin-bottom: 4px; }
-    .stars { color: #C9A84C; font-size: 12px; }
-    .price { font-size: 11px; color: #888; margin-top: 4px; }
-    .category-tag { background: #F5EDD4; padding: 2px 8px; border-radius: 12px; font-size: 10px; color: #8B6914; display: inline-block; margin-bottom: 6px; }
-    .distance { font-size: 10px; color: #666; margin-top: 4px; }
-    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; overflow-y: auto; }
-    .modal.show { display: flex; }
-    .modal-content { background: white; max-width: 430px; width: 90%; border-radius: 20px; overflow: hidden; max-height: 90vh; overflow-y: auto; }
-    .modal-header { background: #1B2D5B; padding: 16px; color: white; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; }
-    .modal-header h3 { margin: 0; font-size: 18px; }
-    .modal-close { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
-    .modal-body { padding: 20px; }
-    .modal-emoji { font-size: 48px; text-align: center; margin-bottom: 12px; cursor: pointer; }
-    .modal-name { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 8px; }
-    .modal-desc { color: #666; text-align: center; margin-bottom: 16px; }
-    .modal-info-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 14px; flex-wrap: wrap; }
-    .modal-info-row .icon { width: 28px; font-size: 18px; }
-    .map-buttons { display: inline-flex; gap: 8px; margin-left: 8px; }
-    .map-btn { background: #f0f0f0; padding: 4px 10px; border-radius: 20px; font-size: 12px; text-decoration: none; color: #1B2D5B; cursor: pointer; }
-    .book-btn { background: #1B2D5B; color: white; border: none; padding: 12px; border-radius: 12px; width: 100%; margin-top: 16px; font-weight: 700; cursor: pointer; }
-    .review-card { background: #f9f9f9; padding: 12px; border-radius: 12px; margin-bottom: 12px; }
-    .review-stars { color: #C9A84C; font-size: 12px; margin-bottom: 4px; }
-    .review-text { font-size: 13px; color: #444; }
-    .review-date { font-size: 10px; color: #aaa; margin-top: 4px; text-align: right; }
-    .review-images { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-    .review-img { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 1px solid #eee; }
-    .photo-preview-area { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-    .photo-preview { position: relative; width: 70px; height: 70px; }
-    .photo-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
-    .photo-preview .remove { position: absolute; top: -6px; right: -6px; background: #dc3545; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-    .add-photo-btn { background: #f0f0f0; width: 70px; height: 70px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; border: 1px dashed #aaa; }
-    .admin-badge { position: fixed; bottom: 20px; right: 20px; background: #1B2D5B; color: white; padding: 10px 16px; border-radius: 30px; font-size: 12px; cursor: pointer; z-index: 200; box-shadow: 0 2px 10px rgba(0,0,0,0.2); font-weight: 500; }
-    .admin-panel-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 350; align-items: flex-start; justify-content: center; overflow-y: auto; }
-    .admin-panel-overlay.show { display: flex; }
-    .admin-panel { width: 100%; max-width: 430px; background: #F5EDD4; padding: 20px 16px 40px; min-height: 100%; }
-    .admin-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid rgba(0,0,0,0.1); }
-    .admin-panel-title { font-size: 17px; font-weight: 700; color: #1B2D5B; }
-    .admin-close-btn { width: 32px; height: 32px; background: #1B2D5B; color: white; border: none; border-radius: 50%; font-size: 18px; cursor: pointer; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 13px; font-family: inherit; }
-    .btn { background: #1B2D5B; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
-    .btn-sm { padding: 6px 12px; font-size: 11px; }
-    .btn-outline { background: transparent; border: 1px solid #C9A84C; color: #C9A84C; }
-    .btn-danger { background: #dc3545; color: white; }
-    .btn-warning { background: #ffc107; color: #333; }
-    .image-preview { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; margin-top: 8px; }
-    .category-item { background: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
-    .rest-item-admin { display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; }
-    .rest-item-admin-name { font-weight: 700; font-size: 13px; }
-    .rest-item-admin-detail { font-size: 11px; color: #666; }
-    .admin-logo-preview { background: #1B2D5B; padding: 12px; border-radius: 10px; text-align: center; margin-top: 12px; }
-    .admin-logo-preview img { max-height: 40px; }
-    #emojiPicker { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-    #emojiPicker button { width: 38px; height: 38px; border: 2px solid #e0d0a0; border-radius: 10px; background: white; font-size: 20px; cursor: pointer; }
-    .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #1B2D5B; color: white; padding: 8px 20px; border-radius: 20px; font-size: 12px; opacity: 0; transition: opacity 0.3s; z-index: 1000; white-space: nowrap; }
-    .toast.show { opacity: 1; }
-    .write-tab-btn { flex: 1; padding: 10px; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; background: transparent; color: #888; }
-    .write-tab-btn.active { background: #1B2D5B; color: white; }
-    .pw-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 400; align-items: center; justify-content: center; }
-    .pw-modal-overlay.show { display: flex; }
-    .pw-modal-box { background: white; padding: 24px; border-radius: 20px; width: 100%; max-width: 430px; text-align: center; margin: 0 16px; }
+    :root{--navy:#1B2D5B;--navy-dark:#0F1D3D;--gold:#C9A84C;--gold-light:#E2C97A;--gold-pale:#F5EDD4;--bg:#F7F6F2;--surface:#fff;--border:rgba(0,0,0,.08);--border-md:rgba(0,0,0,.14);--text:#1a1a1a;--text2:#555;--text3:#999;--rsm:8px;--rmd:12px;--rlg:16px;--shadow:0 2px 12px rgba(0,0,0,.08);}
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);display:flex;justify-content:center;}
+    .app{width:100%;max-width:430px;min-height:100vh;background:var(--surface);box-shadow:var(--shadow);}
+
+    /* HEADER */
+    .hdr{background:var(--navy);padding:13px 16px 11px;position:sticky;top:0;z-index:100;}
+    .hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+    .logo-row{display:flex;align-items:center;gap:10px;}
+    .logo-text{display:flex;flex-direction:column;line-height:1.2;}
+    .logo-en{font-family:'Playfair Display',serif;font-size:16px;font-weight:800;color:#fff;letter-spacing:2px;}
+    .logo-kr{font-size:10px;color:var(--gold);letter-spacing:.8px;}
+    .logo-cn{font-size:9px;color:var(--gold-light);opacity:.8;}
+    .lang-pill{font-size:11px;background:rgba(201,168,76,.18);color:var(--gold-light);padding:3px 10px;border-radius:20px;border:.5px solid rgba(201,168,76,.4);}
+    .loc-bar{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border-radius:8px;padding:7px 12px;}
+    .loc-dot{width:7px;height:7px;background:var(--gold);border-radius:50%;flex-shrink:0;}
+    .loc-txt{font-size:12px;color:rgba(255,255,255,.85);}
+
+    /* BOTTOM NAV */
+    .bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--surface);border-top:.5px solid var(--border);display:flex;z-index:200;padding-bottom:env(safe-area-inset-bottom);}
+    .bni{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px 8px;cursor:pointer;color:var(--text3);font-size:10px;}
+    .bni.on{color:var(--navy);}
+    .bni-ico{font-size:20px;line-height:1;}
+    .bni-dot{width:4px;height:4px;background:var(--gold);border-radius:50%;opacity:0;}
+    .bni.on .bni-dot{opacity:1;}
+
+    .content{padding-bottom:72px;}
+    .screen{display:none;}.screen.on{display:block;}
+
+    /* SEARCH */
+    .sbar{display:flex;gap:8px;padding:11px 16px;border-bottom:.5px solid var(--border);}
+    .sbar-wrap{flex:1;position:relative;display:flex;align-items:center;}
+    .sbar-ico{position:absolute;left:10px;font-size:13px;}
+    .sbar input{width:100%;padding:8px 12px 8px 30px;border:.5px solid var(--border-md);border-radius:var(--rsm);font-size:13px;background:var(--bg);color:var(--text);outline:none;font-family:'Noto Sans KR',sans-serif;}
+    .sbar input:focus{border-color:var(--navy);}
+    .sbtn{background:var(--navy);color:#fff;border:none;padding:8px 14px;border-radius:var(--rsm);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+
+    /* SUBTABS */
+    .stabs{display:flex;border-bottom:.5px solid var(--border);}
+    .stab{flex:1;padding:10px 8px;font-size:12px;text-align:center;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;font-family:'Noto Sans KR',sans-serif;}
+    .stab.on{color:var(--navy);border-bottom-color:var(--gold);font-weight:700;}
+
+    /* CHIPS */
+    .chips{display:flex;gap:7px;padding:9px 16px;overflow-x:auto;scrollbar-width:none;border-bottom:.5px solid var(--border);}
+    .chips::-webkit-scrollbar{display:none;}
+    .chip{white-space:nowrap;padding:5px 12px;border-radius:20px;font-size:11px;border:.5px solid var(--border-md);cursor:pointer;background:var(--surface);color:var(--text2);font-family:'Noto Sans KR',sans-serif;}
+    .chip.on{background:var(--navy);color:#fff;border-color:var(--navy);}
+
+    /* REST CARD */
+    .rcard{display:flex;gap:12px;padding:14px 16px;border-bottom:.5px solid var(--border);cursor:pointer;}
+    .rcard:last-child{border-bottom:none;}
+    .rcard:active{background:var(--bg);}
+    .rimg{width:76px;height:76px;border-radius:var(--rmd);background:var(--gold-pale);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:30px;border:.5px solid rgba(201,168,76,.25);object-fit:cover;}
+    .rinfo{flex:1;min-width:0;}
+    .rname{font-size:14px;font-weight:700;color:var(--text);margin-bottom:1px;}
+    .rkr{font-size:11px;color:var(--navy);font-weight:500;margin-bottom:3px;}
+    .rcat{font-size:11px;color:var(--text2);margin-bottom:5px;}
+    .rmeta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
+    .stars{color:var(--gold);font-size:12px;font-weight:700;}
+    .rcnt{font-size:11px;color:var(--text3);}
+    .rtag{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--gold-pale);color:#8B6914;}
+    .rfooter{display:flex;justify-content:space-between;}
+    .rdist{font-size:11px;color:var(--text3);}
+    .rprice{font-size:11px;color:var(--text2);font-weight:500;}
+
+    /* EMPTY */
+    .empty{padding:48px 16px;text-align:center;}
+    .empty-ico{font-size:48px;margin-bottom:14px;}
+    .empty-title{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:8px;}
+    .empty-sub{font-size:12px;color:var(--text2);line-height:1.65;}
+
+    /* DETAIL */
+    .detail{display:none;}.detail.on{display:block;}
+    .back{display:flex;align-items:center;gap:6px;padding:13px 16px;font-size:13px;color:var(--navy);cursor:pointer;border-bottom:.5px solid var(--border);font-weight:700;}
+    .dhero{height:220px;background:var(--gold-pale);display:flex;align-items:center;justify-content:center;font-size:80px;position:relative;overflow:hidden;}
+    .dhero img{width:100%;height:100%;object-fit:cover;}
+    .dbadge{position:absolute;top:14px;right:14px;background:var(--navy);color:var(--gold-light);font-size:10px;padding:5px 12px;border-radius:20px;}
+    .dbody{padding:16px;}
+    .dname{font-size:20px;font-weight:700;color:var(--text);margin-bottom:2px;}
+    .dkr{font-size:13px;color:var(--navy);font-weight:500;margin-bottom:4px;}
+    .dsub{font-size:12px;color:var(--text2);margin-bottom:16px;}
+    .dstats{display:flex;gap:8px;margin-bottom:18px;}
+    .dstat{flex:1;background:var(--gold-pale);border-radius:var(--rsm);padding:12px 8px;text-align:center;border:.5px solid rgba(201,168,76,.3);}
+    .dstat-n{font-size:18px;font-weight:700;color:var(--navy);}
+    .dstat-l{font-size:10px;color:#8B6914;margin-top:2px;}
+    .sec-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:7px;}
+    .sec-dot{width:3px;height:15px;background:var(--gold);border-radius:2px;}
+
+    /* REVIEW */
+    .rvc{background:var(--bg);border-radius:var(--rmd);padding:12px;margin-bottom:8px;border:.5px solid var(--border);}
+    .rvh{display:flex;justify-content:space-between;margin-bottom:5px;}
+    .rvr{font-size:12px;font-weight:700;color:var(--text);}
+    .rvs{color:var(--gold);font-size:12px;}
+    .rvt{font-size:12px;color:var(--text2);line-height:1.65;}
+    .rv-photos{display:flex;gap:6px;margin-bottom:8px;overflow-x:auto;}
+    .rv-photo{width:80px;height:80px;border-radius:var(--rsm);object-fit:cover;flex-shrink:0;}
+
+    /* BUTTONS */
+    .btn-navy{width:100%;background:var(--navy);color:#fff;border:none;padding:14px;border-radius:var(--rmd);font-size:14px;font-weight:700;cursor:pointer;margin-top:14px;font-family:'Noto Sans KR',sans-serif;}
+    .btn-gold{width:100%;background:var(--gold);color:var(--navy-dark);border:none;padding:12px;border-radius:var(--rmd);font-size:13px;font-weight:700;cursor:pointer;margin-top:8px;font-family:'Noto Sans KR',sans-serif;}
+    .bsm{font-size:11px;padding:6px 12px;border-radius:var(--rsm);border:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-weight:700;}
+    .bsm.navy{background:var(--navy);color:#fff;}
+    .bsm.gold{background:var(--gold);color:var(--navy-dark);}
+    .bsm.out{background:transparent;border:.5px solid var(--border-md);color:var(--text2);}
+    .bsm.red{color:#A32D2D;border:.5px solid #A32D2D;background:transparent;}
+
+    /* FEED */
+    .feed-hdr{background:var(--navy);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;}
+    .feed-hdr-t{font-size:15px;font-weight:700;color:#fff;}
+    .feed-hdr-s{font-size:11px;color:var(--gold-light);}
+    .fchips{display:flex;gap:7px;padding:9px 16px;overflow-x:auto;scrollbar-width:none;border-bottom:.5px solid var(--border);}
+    .fchips::-webkit-scrollbar{display:none;}
+    .fchip{white-space:nowrap;padding:5px 12px;border-radius:20px;font-size:11px;border:.5px solid var(--border-md);cursor:pointer;color:var(--text2);font-family:'Noto Sans KR',sans-serif;}
+    .fchip.on{background:var(--navy);color:#fff;border-color:var(--navy);}
+    .pcard{border-bottom:6px solid var(--bg);padding:16px;}
+    .puser{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+    .avatar{width:36px;height:36px;border-radius:50%;background:var(--gold-pale);border:1.5px solid rgba(201,168,76,.5);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+    .pname{font-size:13px;font-weight:700;color:var(--text);}
+    .pdate{font-size:11px;color:var(--text3);margin-left:auto;}
+    .prest{font-size:11px;color:var(--navy);font-weight:500;}
+    .pstars{color:var(--gold);font-size:11px;}
+    .vbadge{font-size:10px;background:var(--gold-pale);color:#8B6914;padding:1px 7px;border-radius:4px;margin-left:5px;}
+    .pphotos{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;}
+    .pphoto{height:110px;min-width:110px;border-radius:var(--rmd);object-fit:cover;flex-shrink:0;background:var(--gold-pale);}
+    .ptxt{font-size:13px;color:var(--text2);line-height:1.65;margin-bottom:10px;}
+    .ptags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+    .ptag{font-size:10px;padding:3px 9px;border-radius:4px;background:var(--gold-pale);color:#8B6914;}
+    .srow{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+    .slbl{font-size:11px;color:var(--text2);width:40px;}
+    .sbar2{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+    .sfill{height:100%;background:var(--gold);border-radius:3px;}
+    .sval{font-size:11px;color:var(--navy);font-weight:700;width:24px;text-align:right;}
+    .hlp{font-size:11px;padding:5px 12px;border-radius:20px;border:.5px solid var(--border-md);cursor:pointer;color:var(--text2);background:transparent;font-family:'Noto Sans KR',sans-serif;margin-top:10px;}
+    .hlp.on{background:var(--gold-pale);color:#8B6914;border-color:var(--gold);}
+
+    /* WRITE */
+    .whdr{background:var(--navy);padding:16px;}
+    .wtitle{font-size:16px;font-weight:700;color:#fff;}
+    .wsub{font-size:11px;color:var(--gold-light);margin-top:3px;}
+    .wbody{padding:16px;}
+    .flbl{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px;display:flex;align-items:center;gap:5px;}
+    .req{color:var(--gold);font-size:10px;}
+    .rsel{background:var(--bg);border-radius:var(--rmd);padding:12px 14px;margin-bottom:16px;border:.5px solid var(--border-md);display:flex;align-items:center;gap:10px;cursor:pointer;}
+    .rsel-name{font-size:14px;font-weight:700;color:var(--text);}
+    .rsel-sub{font-size:11px;color:var(--text2);}
+    .starrow{display:flex;gap:6px;margin-bottom:16px;}
+    .stari{display:flex;flex-direction:column;align-items:center;gap:5px;flex:1;}
+    .stari-lbl{font-size:10px;color:var(--text2);}
+    .sinput{display:flex;gap:1px;flex-direction:row-reverse;justify-content:center;}
+    .sinput input{display:none;}
+    .sinput label{font-size:20px;color:var(--border-md);cursor:pointer;}
+    .sinput label:hover,.sinput label:hover~label,.sinput input:checked~label{color:var(--gold);}
+    .pdrop{border:1.5px dashed var(--gold);border-radius:var(--rmd);padding:20px 16px;text-align:center;margin-bottom:16px;cursor:pointer;background:var(--gold-pale);}
+    .pdrop-ico{font-size:30px;margin-bottom:6px;}
+    .pdrop-txt{font-size:13px;color:#8B6914;font-weight:700;}
+    .pdrop-sub{font-size:11px;color:#8B6914;opacity:.7;margin-top:3px;}
+    .pprev{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;justify-content:center;}
+    .pthumb{width:64px;height:64px;border-radius:var(--rsm);object-fit:cover;position:relative;display:inline-block;vertical-align:top;}
+    .pthumb-x{position:absolute;top:-5px;right:-5px;width:18px;height:18px;background:var(--navy);color:#fff;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+    textarea{width:100%;padding:12px;border:.5px solid var(--border-md);border-radius:var(--rmd);font-size:13px;background:var(--bg);color:var(--text);outline:none;resize:none;line-height:1.65;font-family:'Noto Sans KR',sans-serif;}
+    textarea:focus{border-color:var(--navy);}
+    .tagrid{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px;}
+    .tagchip{padding:6px 12px;border-radius:20px;font-size:11px;border:.5px solid var(--border-md);cursor:pointer;color:var(--text2);font-family:'Noto Sans KR',sans-serif;}
+    .tagchip.on{background:var(--navy);color:#fff;border-color:var(--navy);}
+    .sub-hint{font-size:11px;color:var(--text3);text-align:center;margin-top:8px;}
+    input[type=text],input[type=password],input[type=number],input[type=email],select{width:100%;padding:9px 12px;border:.5px solid var(--border-md);border-radius:var(--rsm);font-size:13px;background:var(--bg);color:var(--text);outline:none;font-family:'Noto Sans KR',sans-serif;margin-bottom:10px;}
+    input:focus,select:focus{border-color:var(--navy);}
+    select{appearance:none;}
+
+    /* ADMIN */
+    .adhdr{background:var(--navy-dark);padding:14px 16px;}
+    .adtitle{font-size:15px;font-weight:700;color:#fff;}
+    .adsub{font-size:11px;color:var(--gold);margin-top:2px;}
+    .adtabs{display:flex;border-bottom:.5px solid var(--border);background:var(--bg);}
+    .adtab{flex:1;padding:10px 4px;font-size:10px;text-align:center;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;font-family:'Noto Sans KR',sans-serif;}
+    .adtab.on{color:var(--navy);border-bottom-color:var(--gold);font-weight:700;}
+    .adsec{padding:14px 16px;}
+    .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+    .statcard{background:var(--surface);border-radius:var(--rmd);padding:14px;border:.5px solid var(--border);}
+    .statbig{font-size:26px;font-weight:700;color:var(--navy);}
+    .statlbl{font-size:11px;color:var(--text2);margin-top:2px;}
+    .asec-t{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:7px;}
+    .adot{width:3px;height:15px;background:var(--gold);border-radius:2px;}
+    .adcard{background:var(--surface);border:.5px solid var(--border);border-radius:var(--rmd);padding:12px;margin-bottom:10px;}
+    .sbadge{font-size:10px;padding:2px 8px;border-radius:4px;margin-left:6px;}
+    .sbadge.pending{background:#FFF8E1;color:#8B6914;}
+    .sbadge.approved{background:#E8EBF5;color:var(--navy);}
+    .sbadge.featured{background:var(--gold-pale);color:#8B6914;}
+    .sbadge.rejected{background:#FCEBEB;color:#A32D2D;}
+    .rac{background:var(--surface);border:.5px solid var(--border);border-radius:var(--rmd);padding:14px;margin-bottom:12px;}
+    .rac-top{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+    .slrow{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+    .sllbl{font-size:11px;color:var(--text2);width:52px;}
+    input[type=range]{flex:1;accent-color:var(--navy);cursor:pointer;margin-bottom:0;}
+    .slval{font-size:12px;font-weight:700;color:var(--navy);width:26px;text-align:right;}
+    .fsec{background:var(--surface);border:.5px solid var(--border);border-radius:var(--rmd);padding:14px;margin-bottom:14px;}
+    .fsec h4{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px;}
+
+    /* MAP */
+    .map-ph{height:200px;background:var(--gold-pale);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;}
+    .mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 16px;}
+    .mpin{background:var(--bg);border-radius:var(--rmd);padding:12px 8px;text-align:center;cursor:pointer;border:.5px solid var(--border);}
+    .mpin:active{border-color:var(--gold);}
+    .mpin-e{font-size:22px;margin-bottom:4px;}
+    .mpin-n{font-size:11px;color:var(--text);font-weight:500;}
+    .mpin-d{font-size:10px;color:var(--text3);margin-top:2px;}
+
+    /* LOGIN */
+    .login-wrap{padding:48px 24px;text-align:center;}
+    .login-wrap h3{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:20px;}
+
+    /* LOADING */
+    .ld{display:flex;align-items:center;justify-content:center;padding:40px;gap:10px;color:var(--text2);font-size:13px;}
+    .spin{width:18px;height:18px;border:2px solid var(--border-md);border-top-color:var(--navy);border-radius:50%;animation:sp .8s linear infinite;flex-shrink:0;}
+    @keyframes sp{to{transform:rotate(360deg);}}
+
+    /* PICKER */
+    .picker{background:var(--bg);border-radius:var(--rmd);border:.5px solid var(--border-md);margin-bottom:14px;max-height:200px;overflow-y:auto;}
+    .picker-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:.5px solid var(--border);cursor:pointer;}
+    .picker-item:last-child{border-bottom:none;}
+    .picker-item:active{background:var(--surface);}
+
+    /* TOAST */
+    .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-family:'Noto Sans KR',sans-serif;opacity:0;transition:all .3s;z-index:999;white-space:nowrap;box-shadow:var(--shadow);}
+    .toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
   </style>
 </head>
 <body>
 <div class="app">
-  <div class="header">
-    <div class="logo-area">
-      <img class="logo-image" id="headerLogo" src="" alt="플랜메이트 로고">
-      <div class="lang-badge">🇰🇷 한국어</div>
-    </div>
-    <div class="search-bar">
-      <input type="text" id="searchInput" placeholder="가게명 또는 주소 검색...">
-      <button id="searchClearBtn" onclick="clearSearch()">✕</button>
-      <button class="nearby-btn" onclick="searchNearby()">📍 내 주변</button>
-    </div>
-  </div>
 
-  <div class="tabs">
-    <div class="tab active" data-tab="list">🍜 맛집</div>
-    <div class="tab" data-tab="sights">🏛️ 관광지</div>
-    <div class="tab" data-tab="hotels">🏨 호텔</div>
-    <div class="tab" data-tab="write">✍️ 리뷰</div>
-  </div>
-
-  <div class="panel active" id="panel-list"><div id="restaurantList"></div></div>
-  <div class="panel" id="panel-sights"><div id="sightsList"></div></div>
-  <div class="panel" id="panel-hotels"><div id="hotelsList"></div></div>
-  <div class="panel" id="panel-write">
-    <div style="display:flex; gap:8px; margin-bottom:16px;">
-      <button class="write-tab-btn active" data-write="rest">🍜 맛집</button>
-      <button class="write-tab-btn" data-write="sight">🏛️ 관광지</button>
-      <button class="write-tab-btn" data-write="hotel">🏨 호텔</button>
-    </div>
-    <select id="writeSelect" style="width:100%; padding:12px; margin-bottom:12px; border-radius:12px; border:1px solid #ddd;"></select>
-    <select id="writeRating" style="width:100%; padding:12px; margin-bottom:12px; border-radius:12px; border:1px solid #ddd;">
-      <option value="5">★★★★★ 5점</option><option value="4">★★★★☆ 4점</option><option value="3">★★★☆☆ 3점</option>
-      <option value="2">★★☆☆☆ 2점</option><option value="1">★☆☆☆☆ 1점</option>
-    </select>
-    <textarea id="writeText" rows="3" placeholder="리뷰를 작성해주세요" style="width:100%; padding:12px; border-radius:12px; border:1px solid #ddd;"></textarea>
-    <div style="margin-top:12px;">
-      <div style="font-size:12px; color:#555; margin-bottom:6px;">📷 사진 첨부 (최대 9장)</div>
-      <div id="writePhotoPreview" class="photo-preview-area"></div>
-      <div class="add-photo-btn" onclick="document.getElementById('writePhotoInput').click()">+</div>
-      <input type="file" id="writePhotoInput" accept="image/*" multiple style="display:none;">
-    </div>
-    <button onclick="submitReview()" class="btn" style="margin-top:16px;">리뷰 등록</button>
-  </div>
-
-  <div class="admin-badge" onclick="openAdminModal()">🔧 관리자</div>
-
-  <div class="pw-modal-overlay" id="adminModal">
-    <div class="pw-modal-box">
-      <div style="font-size:28px;margin-bottom:8px;">🔐</div>
-      <h4 style="margin-bottom:4px;color:#1B2D5B;">관리자 인증</h4>
-      <p style="font-size:12px;color:#999;margin-bottom:12px;">비밀번호를 입력하세요</p>
-      <input type="password" id="adminPassword" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')checkAdminPassword()"
-        style="width:100%;padding:12px;margin-bottom:10px;border:1px solid #ddd;border-radius:10px;font-size:14px;">
-      <div id="adminLoginStatus" style="font-size:12px;color:#dc3545;margin-bottom:10px;min-height:18px;"></div>
-      <button onclick="checkAdminPassword()" style="background:#1B2D5B;color:white;border:none;padding:12px 20px;border-radius:10px;width:100%;font-size:14px;font-weight:600;">확인</button>
-    </div>
-  </div>
-
-  <div class="admin-panel-overlay" id="adminPanelOverlay">
-    <div class="admin-panel">
-      <div class="admin-panel-header">
-        <span class="admin-panel-title">🔧 관리자 모드</span>
-        <button class="admin-close-btn" onclick="closeAdminPanel()">✕</button>
-      </div>
-      <h4>🖼️ 로고 변경</h4>
-      <input type="file" id="logoUpload" accept="image/*" style="margin-bottom:8px;">
-      <button class="btn btn-sm" onclick="uploadLogo()">업로드</button>
-      <div class="admin-logo-preview"><img id="adminLogoPreview" src=""></div>
-
-      <h4>🏷️ 카테고리 관리</h4>
-      <input type="text" id="newCatName" placeholder="새 카테고리명" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-bottom:8px;font-size:13px;">
-      <div style="font-size:12px;color:#8B6914;margin-bottom:6px;font-weight:500;">이모지 선택</div>
-      <div id="emojiPicker"></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-        <div id="selectedEmojiDisplay" style="width:38px;height:38px;background:white;border:2px solid #C9A84C;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;">🍜</div>
-        <span style="font-size:12px;color:#666;">선택된 이모지</span>
-        <button class="btn btn-sm" onclick="addCategory()" style="margin-left:auto;">추가</button>
-      </div>
-      <div id="categoryList"></div>
-
-      <h4>🍜 맛집 추가</h4>
-      <div class="form-group"><label>🈶 중국어 이름 *</label><input type="text" id="restName" placeholder="예) 南翔馒头店"></div>
-      <div class="form-group"><label>🇰🇷 한국어 이름 *</label><input type="text" id="restNameKr" placeholder="예) 난샹 만두점"></div>
-      <div class="form-group"><label>🏷️ 카테고리</label><select id="restCat"></select></div>
-      <div class="form-group"><label>💰 가격대</label><input type="text" id="restPrice" placeholder="예) ₩8,000~15,000"></div>
-      <div class="form-group"><label>📍 주소</label><input type="text" id="restAddress" placeholder="예) 상하이 황푸구 예위안루 85호"></div>
-      <div class="form-group"><label>📞 전화번호</label><input type="text" id="restPhone" placeholder="예) 021-6355-4206"></div>
-      <div class="form-group"><label>🕒 영업시간</label><input type="text" id="restHours" placeholder="예) 11:00~21:00 (월-일)"></div>
-      <div class="form-group"><label>📝 설명</label><textarea id="restDesc" rows="2" placeholder="맛집 소개"></textarea></div>
-      <div class="form-group"><label>📷 대표 사진</label><input type="file" id="restImageInput" accept="image/*"><div id="restImagePreview"></div></div>
-      <button class="btn" onclick="addRestaurant()">맛집 등록하기</button>
-      <h4>📋 맛집 관리</h4>
-      <div id="adminRestList"></div>
-
-      <h4>🏛️ 관광지 추가</h4>
-      <div class="form-group"><label>🏛️ 이름 *</label><input type="text" id="sightName" placeholder="예) 와이탄 (外滩)"></div>
-      <div class="form-group"><label>😀 이모지</label><input type="text" id="sightEmoji" placeholder="예) 🌉" style="width:80px;"></div>
-      <div class="form-group"><label>📍 주소</label><input type="text" id="sightAddress" placeholder="예) 상하이 황푸구 중산동이루"></div>
-      <div class="form-group"><label>📝 설명</label><textarea id="sightDesc" rows="2" placeholder="관광지 소개"></textarea></div>
-      <div class="form-group"><label>📷 대표 사진</label><input type="file" id="sightImageInput" accept="image/*"><div id="sightImagePreview"></div></div>
-      <button class="btn" onclick="addSight()">관광지 등록하기</button>
-      <h4>📋 관광지 관리</h4>
-      <div id="adminSightList"></div>
-
-      <h4>🏨 호텔 추가</h4>
-      <div class="form-group"><label>🏨 이름 *</label><input type="text" id="hotelName" placeholder="예) 상하이 매리어트 호텔"></div>
-      <div class="form-group"><label>⭐ 등급</label><select id="hotelStars"><option value="5">⭐⭐⭐⭐⭐ 5성급</option><option value="4">⭐⭐⭐⭐ 4성급</option><option value="3">⭐⭐⭐ 3성급</option><option value="0">기타</option></select></div>
-      <div class="form-group"><label>💰 가격대 (1박)</label><input type="text" id="hotelPrice" placeholder="예) ₩150,000~300,000"></div>
-      <div class="form-group"><label>📍 주소</label><input type="text" id="hotelAddress" placeholder="예) 상하이 황푸구 난징동루 123호"></div>
-      <div class="form-group"><label>📞 전화번호</label><input type="text" id="hotelPhone" placeholder="예) 021-2312-9888"></div>
-      <div class="form-group"><label>📝 설명</label><textarea id="hotelDesc" rows="2" placeholder="호텔 소개"></textarea></div>
-      <div class="form-group"><label>📷 대표 사진</label><input type="file" id="hotelImageInput" accept="image/*"><div id="hotelImagePreview"></div></div>
-      <button class="btn" onclick="addHotel()">호텔 등록하기</button>
-      <h4>📋 호텔 관리</h4>
-      <div id="adminHotelList"></div>
-
-      <h4>🔐 비밀번호 변경</h4>
-      <div style="background:white;border-radius:12px;padding:14px;">
-        <div id="pwStep1">
-          <div class="form-group"><label>현재 비밀번호</label><input type="password" id="pwChangeCurrent" placeholder="현재 비밀번호"></div>
-          <div id="pwStep1Status" style="font-size:12px;min-height:16px;margin-bottom:8px;"></div>
-          <button class="btn" onclick="requestEmailCode()" style="width:100%;">📧 이메일로 인증코드 받기</button>
+  <!-- ─── HEADER ─── -->
+  <div class="hdr" id="mainHdr">
+    <div class="hdr-top">
+      <div class="logo-row">
+        <svg width="42" height="50" viewBox="0 0 72 86" fill="none">
+          <circle cx="36" cy="36" r="34" stroke="#C9A84C" stroke-width="2.5"/>
+          <path d="M36 5C20 5 8 17 8 31C8 49 36 75 36 75S64 49 64 31C64 17 52 5 36 5Z" fill="#fff"/>
+          <circle cx="36" cy="30" r="17" fill="#1B2D5B"/>
+          <polygon points="36,10 39.5,23 36,20 32.5,23" fill="#C9A84C"/>
+          <polygon points="36,50 39.5,37 36,40 32.5,37" fill="#C9A84C"/>
+          <polygon points="16,30 29,26.5 26,30 29,33.5" fill="#C9A84C"/>
+          <polygon points="56,30 43,26.5 46,30 43,33.5" fill="#C9A84C"/>
+          <polygon points="36,20 46,30 36,40 26,30" fill="#C9A84C"/>
+          <text x="36" y="31" text-anchor="middle" dominant-baseline="middle" font-family="Georgia,serif" font-size="15" font-weight="700" fill="#1B2D5B">M</text>
+          <circle cx="36" cy="75" r="3" fill="#C9A84C"/>
+          <circle cx="36" cy="2" r="2" fill="#C9A84C"/>
+        </svg>
+        <div class="logo-text">
+          <span class="logo-en">PLAN MATE</span>
+          <span class="logo-kr">플랜메이트</span>
+          <span class="logo-cn">计划伴侣</span>
         </div>
-        <div id="pwStep2" style="display:none;">
-          <div style="background:#EEF4FF;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:#1B2D5B;">
-            📬 인증코드를 이메일로 발송했어요.<br><strong id="pwEmailMasked"></strong><br><span style="color:#999;">5분 유효</span>
-          </div>
-          <input type="text" id="pwVerifyCode" placeholder="000000" maxlength="6" oninput="this.value=this.value.replace(/\D/g,'')"
-            style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:20px;letter-spacing:6px;text-align:center;margin-bottom:8px;">
-          <div id="pwStep2Status" style="font-size:12px;min-height:16px;margin-bottom:8px;"></div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-outline btn-sm" onclick="resetPwSteps()" style="flex:1;">← 다시 시도</button>
-            <button class="btn btn-sm" onclick="verifyEmailCode()" style="flex:2;">인증 확인</button>
+      </div>
+      <div class="lang-pill">🇰🇷 한국어</div>
+    </div>
+    <div class="loc-bar"><div class="loc-dot"></div><span class="loc-txt">상하이 · 황푸구 탐색 중</span></div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ 맛집 TAB ══ -->
+    <div class="screen on" id="sc-list">
+      <div class="sbar">
+        <div class="sbar-wrap"><span class="sbar-ico">🔍</span><input id="searchInput" placeholder="음식, 가게 이름 검색..." oninput="filterRests()"/></div>
+        <button class="sbtn" onclick="filterRests()">검색</button>
+      </div>
+      <div class="stabs">
+        <div class="stab on" onclick="switchSub(this,'sub-list')">🍜 맛집</div>
+        <div class="stab" onclick="switchSub(this,'sub-map')">🗺 지도</div>
+        <div class="stab" onclick="switchSub(this,'sub-nearby')">📍 내 주변</div>
+      </div>
+      <div class="chips">
+        <div class="chip on" onclick="setChip(this,'')">전체</div>
+        <div class="chip" onclick="setChip(this,'현지 중식')">현지 중식</div>
+        <div class="chip" onclick="setChip(this,'딤섬')">딤섬</div>
+        <div class="chip" onclick="setChip(this,'훠궈')">훠궈</div>
+        <div class="chip" onclick="setChip(this,'해산물')">해산물</div>
+        <div class="chip" onclick="setChip(this,'카페')">카페</div>
+        <div class="chip" onclick="setChip(this,'한국어 메뉴')">한국어 메뉴</div>
+      </div>
+
+      <!-- LIST -->
+      <div id="sub-list">
+        <div id="restList"><div class="ld"><div class="spin"></div>맛집 불러오는 중...</div></div>
+        <!-- DETAIL -->
+        <div class="detail" id="detailView">
+          <div class="back" onclick="closeDetail()">← 목록으로</div>
+          <div class="dhero" id="dHero"></div>
+          <div class="dbody">
+            <div class="dname" id="dName"></div>
+            <div class="dkr" id="dKr"></div>
+            <div class="dsub" id="dSub"></div>
+            <div class="dstats">
+              <div class="dstat"><div class="dstat-n" id="dScore">-</div><div class="dstat-l">평점</div></div>
+              <div class="dstat"><div class="dstat-n" id="dRevCnt">0</div><div class="dstat-l">리뷰</div></div>
+              <div class="dstat"><div class="dstat-n" id="dVisit">-</div><div class="dstat-l">재방문율</div></div>
+            </div>
+            <div class="sec-title"><div class="sec-dot"></div>리뷰</div>
+            <div id="dRevList"><div class="ld"><div class="spin"></div></div></div>
+            <button class="btn-navy" onclick="goWriteForRest()">이 음식점 리뷰 작성 →</button>
           </div>
         </div>
-        <div id="pwStep3" style="display:none;">
-          <div style="background:#EAFAF1;border-radius:10px;padding:10px;margin-bottom:12px;font-size:12px;color:#1B6B3A;">✅ 인증 완료! 새 비밀번호를 설정하세요.</div>
-          <div class="form-group"><label>새 비밀번호 (6자 이상)</label><input type="password" id="pwChangeNew" placeholder="새 비밀번호"></div>
-          <div class="form-group"><label>새 비밀번호 확인</label><input type="password" id="pwChangeConfirm" placeholder="재입력"></div>
-          <div id="pwStep3Status" style="font-size:12px;min-height:16px;margin-bottom:8px;"></div>
-          <button class="btn" onclick="changeAdminPassword()" style="width:100%;">🔑 비밀번호 변경 완료</button>
+      </div>
+
+      <!-- MAP -->
+      <div id="sub-map" style="display:none;">
+        <div class="map-ph"><div style="font-size:44px;">🗺</div><div style="font-size:14px;font-weight:700;color:var(--navy);">지도 보기</div><div style="font-size:12px;color:#8B6914;">핀을 눌러 음식점으로 이동</div></div>
+        <div class="mgrid" id="mapGrid"><div class="ld"><div class="spin"></div></div></div>
+      </div>
+
+      <!-- NEARBY -->
+      <div id="sub-nearby" style="display:none;">
+        <div style="padding:40px 16px;text-align:center;">
+          <div style="font-size:48px;margin-bottom:14px;">📍</div>
+          <div style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:8px;">내 주변 맛집 찾기</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.65;">현재 위치를 허용하면<br>걸어서 갈 수 있는 맛집을 찾아드려요</div>
+          <button class="sbtn" style="padding:12px 28px;font-size:13px;">위치 허용하기</button>
         </div>
       </div>
     </div>
-  </div>
 
-  <div id="infoModal" class="modal"><div class="modal-content"><div class="modal-header"><h3 id="modalTitle">상세 정보</h3><button class="modal-close" onclick="closeModal()">&times;</button></div><div class="modal-body" id="modalBody"></div></div></div>
-  <div id="toast" class="toast"></div>
+    <!-- ══ 리뷰 피드 TAB ══ -->
+    <div class="screen" id="sc-feed">
+      <div class="feed-hdr"><div class="feed-hdr-t">플랜메이트 리뷰</div><div class="feed-hdr-s" id="feedCnt">불러오는 중...</div></div>
+      <div class="fchips">
+        <div class="fchip on" onclick="setFchip(this,'all')">전체</div>
+        <div class="fchip" onclick="setFchip(this,'photo')">📸 사진 인증</div>
+        <div class="fchip" onclick="setFchip(this,'5')">★ 5점</div>
+        <div class="fchip" onclick="setFchip(this,'recent')">최신순</div>
+        <div class="fchip" onclick="setFchip(this,'helpful')">추천순</div>
+      </div>
+      <div id="feedList"><div class="ld"><div class="spin"></div>리뷰 불러오는 중...</div></div>
+    </div>
+
+    <!-- ══ 리뷰 작성 TAB ══ -->
+    <div class="screen" id="sc-write">
+      <div class="whdr"><div class="wtitle">리뷰 작성하기</div><div class="wsub">사진과 함께 경험을 공유해주세요</div></div>
+      <div class="wbody">
+        <div class="flbl">음식점 선택 <span class="req">필수</span></div>
+        <div class="rsel" onclick="togglePicker()">
+          <div style="font-size:22px;" id="wEmoji">🥟</div>
+          <div style="flex:1;"><div class="rsel-name" id="wRestName">음식점을 선택하세요</div><div class="rsel-sub" id="wRestSub">탭하여 선택</div></div>
+          <div style="font-size:11px;color:var(--text3);">▼</div>
+        </div>
+        <div class="picker" id="restPicker" style="display:none;"></div>
+
+        <div class="flbl">작성자 이름 <span class="req">필수</span></div>
+        <input type="text" id="wAuthor" placeholder="닉네임 또는 이름"/>
+
+        <div class="flbl">카테고리별 평점 <span class="req">필수</span></div>
+        <div class="starrow">
+          <div class="stari"><div class="sinput"><input type="radio" name="taste" id="t5" value="5"><label for="t5">★</label><input type="radio" name="taste" id="t4" value="4"><label for="t4">★</label><input type="radio" name="taste" id="t3" value="3" checked><label for="t3">★</label><input type="radio" name="taste" id="t2" value="2"><label for="t2">★</label><input type="radio" name="taste" id="t1" value="1"><label for="t1">★</label></div><div class="stari-lbl">맛</div></div>
+          <div class="stari"><div class="sinput"><input type="radio" name="price" id="p5" value="5"><label for="p5">★</label><input type="radio" name="price" id="p4" value="4" checked><label for="p4">★</label><input type="radio" name="price" id="p3" value="3"><label for="p3">★</label><input type="radio" name="price" id="p2" value="2"><label for="p2">★</label><input type="radio" name="price" id="p1" value="1"><label for="p1">★</label></div><div class="stari-lbl">가성비</div></div>
+          <div class="stari"><div class="sinput"><input type="radio" name="svc" id="sv5" value="5" checked><label for="sv5">★</label><input type="radio" name="svc" id="sv4" value="4"><label for="sv4">★</label><input type="radio" name="svc" id="sv3" value="3"><label for="sv3">★</label><input type="radio" name="svc" id="sv2" value="2"><label for="sv2">★</label><input type="radio" name="svc" id="sv1" value="1"><label for="sv1">★</label></div><div class="stari-lbl">친절도</div></div>
+          <div class="stari"><div class="sinput"><input type="radio" name="amb" id="a5" value="5"><label for="a5">★</label><input type="radio" name="amb" id="a4" value="4"><label for="a4">★</label><input type="radio" name="amb" id="a3" value="3" checked><label for="a3">★</label><input type="radio" name="amb" id="a2" value="2"><label for="a2">★</label><input type="radio" name="amb" id="a1" value="1"><label for="a1">★</label></div><div class="stari-lbl">분위기</div></div>
+        </div>
+
+        <div class="flbl">사진 <span style="font-size:10px;color:var(--text3);font-weight:400;">(최대 6장)</span></div>
+        <div class="pdrop" onclick="document.getElementById('photoInput').click()">
+          <div class="pdrop-ico">📷</div><div class="pdrop-txt">사진을 추가해주세요</div>
+          <div class="pdrop-sub">음식, 영수증, 매장 사진 환영</div>
+          <div class="pprev" id="photoPrev"></div>
+        </div>
+        <input type="file" id="photoInput" accept="image/*" multiple style="display:none" onchange="handlePhotos(this)"/>
+
+        <div class="flbl" style="margin-top:16px;">리뷰 <span class="req">필수</span></div>
+        <textarea id="wText" rows="4" placeholder="맛, 서비스, 분위기를 자유롭게 작성해주세요. 다른 여행자들에게 큰 도움이 돼요! (최소 20자)"></textarea>
+
+        <div class="flbl" style="margin-top:14px;">태그 선택</div>
+        <div class="tagrid">
+          <div class="tagchip" onclick="this.classList.toggle('on')">재방문 의사</div>
+          <div class="tagchip" onclick="this.classList.toggle('on')">웨이팅 있음</div>
+          <div class="tagchip" onclick="this.classList.toggle('on')">가성비</div>
+          <div class="tagchip" onclick="this.classList.toggle('on')">한국어 메뉴</div>
+          <div class="tagchip" onclick="this.classList.toggle('on')">혼밥 가능</div>
+          <div class="tagchip" onclick="this.classList.toggle('on')">단체 추천</div>
+          <div class="tagchip" onclick="this.classList.toggle('on')">예약 필수</div>
+          <div class="tagchip" onclick="this.classList.toggle('on')">주차 가능</div>
+        </div>
+        <button class="btn-navy" onclick="submitReview()" id="submitBtn">리뷰 제출하기</button>
+        <div class="sub-hint">제출 후 운영자 검토를 거쳐 게시됩니다</div>
+      </div>
+    </div>
+
+    <!-- ══ 관리자 TAB ══ -->
+    <div class="screen" id="sc-admin">
+      <div id="adminGate">
+        <div class="adhdr"><div class="adtitle">관리자</div><div class="adsub">플랜메이트</div></div>
+        <div class="login-wrap">
+          <h3>🔐 관리자 인증</h3>
+          <input type="password" id="adminPw" placeholder="비밀번호" style="max-width:260px;margin:0 auto 10px;"/>
+          <button class="bsm navy" onclick="checkAdmin()" style="width:100%;max-width:260px;padding:11px;">확인</button>
+        </div>
+      </div>
+      <div id="adminPanel" style="display:none;">
+        <div class="adhdr" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div><div class="adtitle">관리자 대시보드</div><div class="adsub">플랜메이트 · 상하이</div></div>
+          <button class="bsm out" onclick="logoutAdmin()" style="color:#fff;border-color:rgba(255,255,255,.3);">로그아웃</button>
+        </div>
+        <div class="adtabs">
+          <div class="adtab on" onclick="adtab(this,'ad-stat')">📊 현황</div>
+          <div class="adtab" onclick="adtab(this,'ad-add')">➕ 추가</div>
+          <div class="adtab" onclick="adtab(this,'ad-review')">📝 검토</div>
+          <div class="adtab" onclick="adtab(this,'ad-score')">⭐ 점수</div>
+        </div>
+        <!-- 현황 -->
+        <div id="ad-stat">
+          <div class="adsec">
+            <div class="statgrid">
+              <div class="statcard"><div class="statbig" id="sTotalRest">-</div><div class="statlbl">등록 맛집</div></div>
+              <div class="statcard"><div class="statbig" id="sTotalReview">-</div><div class="statlbl">전체 리뷰</div></div>
+              <div class="statcard"><div class="statbig" id="sPending">-</div><div class="statlbl">검토 대기</div></div>
+              <div class="statcard"><div class="statbig" id="sAvgScore">-</div><div class="statlbl">평균 평점</div></div>
+            </div>
+            <div class="asec-t"><div class="adot"></div>음식점별 현황</div>
+            <div id="adRestList"><div class="ld"><div class="spin"></div></div></div>
+          </div>
+        </div>
+        <!-- 추가 -->
+        <div id="ad-add" style="display:none;">
+          <div class="adsec">
+            <div class="fsec">
+              <h4>🍜 새 맛집 등록</h4>
+              <div class="flbl">중국어 이름 <span class="req">필수</span></div><input type="text" id="adName" placeholder="예: 南翔馒头店"/>
+              <div class="flbl">한국어 이름 <span class="req">필수</span></div><input type="text" id="adKr" placeholder="예: 난샹 만두점"/>
+              <div class="flbl">카테고리</div><input type="text" id="adCat" placeholder="예: 소룡포 · 딤섬 전문"/>
+              <div class="flbl">가격대</div><input type="text" id="adPrice" placeholder="예: ₩8,000~15,000"/>
+              <div class="flbl">주소 / 거리</div><input type="text" id="adAddr" placeholder="예: 황푸구 · 와이탄 0.3km"/>
+              <div class="flbl">전화번호</div><input type="text" id="adPhone" placeholder="예: +86-21-6355-4206"/>
+              <div class="flbl">이모지 아이콘</div><input type="text" id="adEmoji" placeholder="예: 🥟" style="font-size:20px;"/>
+              <div class="flbl">태그 (쉼표 구분)</div><input type="text" id="adTag" placeholder="예: 한국어 메뉴, 예약가능"/>
+              <div class="flbl">설명</div><textarea id="adDesc" rows="3" placeholder="음식점 소개"></textarea>
+              <div class="flbl" style="margin-top:8px;">대표 사진</div>
+              <div class="pdrop" onclick="document.getElementById('adPhotoInput').click()" style="margin-bottom:10px;">
+                <div class="pdrop-ico">📷</div><div class="pdrop-txt">대표 사진 추가</div>
+                <div class="pprev" id="adPhotoPrev"></div>
+              </div>
+              <input type="file" id="adPhotoInput" accept="image/*" style="display:none" onchange="handleAdPhoto(this)"/>
+              <button class="bsm navy" onclick="addRestaurant()" style="width:100%;padding:12px;margin-top:4px;" id="adAddBtn">맛집 등록하기</button>
+            </div>
+          </div>
+        </div>
+        <!-- 검토 -->
+        <div id="ad-review" style="display:none;">
+          <div class="adsec"><div id="reviewAdminList"><div class="ld"><div class="spin"></div></div></div></div>
+        </div>
+        <!-- 점수 -->
+        <div id="ad-score" style="display:none;">
+          <div class="adsec">
+            <p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">사용자 리뷰 평균을 기준으로 최종 점수를 조정할 수 있어요.</p>
+            <div id="scoreAdjList"><div class="ld"><div class="spin"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- BOTTOM NAV -->
+  <div class="bnav">
+    <div class="bni on" onclick="goTab(this,'list')"><div class="bni-ico">🍜</div><div>맛집</div><div class="bni-dot"></div></div>
+    <div class="bni" onclick="goTab(this,'feed')"><div class="bni-ico">📋</div><div>리뷰</div><div class="bni-dot"></div></div>
+    <div class="bni" onclick="goTab(this,'write')"><div class="bni-ico">✍️</div><div>작성</div><div class="bni-dot"></div></div>
+    <div class="bni" onclick="goTab(this,'admin')"><div class="bni-ico">⚙️</div><div>관리</div><div class="bni-dot"></div></div>
+  </div>
+  <div class="toast" id="toast"></div>
 </div>
 
 <script>
-  // ==================== Firebase 설정 (본인 값으로 교체하세요!) ====================
-  const firebaseConfig = {
-    apiKey: "AIzaSyACdsA_2ZcRzMMU1kOJRy2weWJQHpUIC6g",
-    authDomain: "planmate-90eae.firebaseapp.com",
-    projectId: "planmate-90eae",
-    storageBucket: "planmate-90eae.firebasestorage.app",
-    messagingSenderId: "1021305342932",
-    appId: "1:1021305342932:web:edd5a87de57d373fee2441"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
+// ───── STATE ─────
+let restaurants=[], allReviews=[], currentRestId=null, selectedRest=null;
+let currentFilter='', currentSearch='', feedFilter='all';
+let photoFiles=[], adPhotoData=null, toastTimer=null;
+const ADMIN_PW='planmate2024'; // ← 원하는 비밀번호로 변경
 
-  // ==================== 전역 변수 ====================
-  let categories = [];
-  let restaurants = [];
-  let reviews = [];
-  let sights = [];
-  let sightReviews = [];
-  let hotels = [];
-  let hotelReviews = [];
-  let currentLogo = '';
-  let currentSearchKeyword = '';
-  let currentNearbyFilter = null;
-  let galleryImages = [];
-  let galleryIndex = 0;
+// ───── FIREBASE READY ─────
+document.addEventListener('fbReady', ()=>{
+  subscribeRestaurants();
+  subscribeReviews();
+});
 
-  // ==================== 지도 및 유틸리티 함수 ====================
-  function openGoogleMap(address) {
-    if (!address) return;
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`, '_blank');
-  }
-  function openGaodeMap(address) {
-    if (!address) return;
-    window.open(`https://uri.amap.com/search?keyword=${encodeURIComponent(address)}&callnative=1`, '_blank');
-  }
-  function getHotelStarsIcon(stars) {
-    if (stars === 5) return '<i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>';
-    if (stars === 4) return '<i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="far fa-star"></i>';
-    if (stars === 3) return '<i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="far fa-star"></i><i class="far fa-star"></i>';
-    return '<i class="fas fa-hotel"></i>';
-  }
-  function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2000); }
-  async function sha256(str) { const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
-  async function initAdminPw() { if(!localStorage.getItem('adminPwHash')) localStorage.setItem('adminPwHash', await sha256('admin123')); } initAdminPw();
-  function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  }
-
-  // ==================== Firebase 데이터 로드 ====================
-  async function loadCategories() {
-    const snapshot = await db.collection('categories').get();
-    if (snapshot.empty) {
-      const defaultCats = [
-        { name: "한식", emoji: "🇰🇷" }, { name: "중식", emoji: "🥢" }, { name: "광둥요리", emoji: "🥘" },
-        { name: "사천요리", emoji: "🌶️" }, { name: "북경요리", emoji: "🦆" }, { name: "딤섬", emoji: "🥟" },
-        { name: "훠궈", emoji: "🔥" }, { name: "양식", emoji: "🍝" }, { name: "일식", emoji: "🍣" }, { name: "카페", emoji: "☕" }
-      ];
-      for (const cat of defaultCats) await db.collection('categories').add(cat);
-      categories = defaultCats;
-    } else {
-      categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    }
-    updateCatSelect();
-    renderCategoryListAdmin();
-  }
-  async function loadRestaurants() {
-    const snapshot = await db.collection('restaurants').get();
-    restaurants = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    renderRestaurants();
-    renderAdminRestList();
-  }
-  async function loadReviews() {
-    const snapshot = await db.collection('reviews').get();
-    reviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  }
-  async function loadSights() {
-    const snapshot = await db.collection('sights').get();
-    sights = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    renderSights();
-    renderAdminSightList();
-  }
-  async function loadSightReviews() {
-    const snapshot = await db.collection('sightReviews').get();
-    sightReviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  }
-  async function loadHotels() {
-    const snapshot = await db.collection('hotels').get();
-    hotels = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    renderHotels();
-    renderAdminHotelList();
-  }
-  async function loadHotelReviews() {
-    const snapshot = await db.collection('hotelReviews').get();
-    hotelReviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  }
-  async function loadLogo() {
-    const logoDoc = await db.collection('settings').doc('logo').get();
-    if (logoDoc.exists) currentLogo = logoDoc.data().url;
-    else currentLogo = DEFAULT_LOGO;
-    document.getElementById('headerLogo').src = currentLogo;
-    document.getElementById('adminLogoPreview').src = currentLogo;
-  }
-  function setupRealtimeListeners() {
-    db.collection('restaurants').onSnapshot(() => loadRestaurants());
-    db.collection('reviews').onSnapshot(() => loadReviews());
-    db.collection('sights').onSnapshot(() => loadSights());
-    db.collection('sightReviews').onSnapshot(() => loadSightReviews());
-    db.collection('hotels').onSnapshot(() => loadHotels());
-    db.collection('hotelReviews').onSnapshot(() => loadHotelReviews());
-    db.collection('categories').onSnapshot(() => loadCategories());
-    db.collection('settings').doc('logo').onSnapshot((doc) => {
-      if (doc.exists) currentLogo = doc.data().url;
-      else currentLogo = DEFAULT_LOGO;
-      document.getElementById('headerLogo').src = currentLogo;
-      document.getElementById('adminLogoPreview').src = currentLogo;
-    });
-  }
-
-  // ==================== 검색 및 필터 (전체 구현) ====================
-  function applyFiltersAndRender(type) {
-    if(type === 'rest') {
-      let items = [...restaurants];
-      items = items.filter(i => {
-        if(currentSearchKeyword) {
-          const kw = currentSearchKeyword.toLowerCase();
-          const inName = i.name && i.name.toLowerCase().includes(kw);
-          const inNameKr = i.nameKr && i.nameKr.toLowerCase().includes(kw);
-          const inAddr = i.address && i.address.toLowerCase().includes(kw);
-          const inCat = i.cat && i.cat.toLowerCase().includes(kw);
-          const inDesc = i.desc && i.desc.toLowerCase().includes(kw);
-          if (!(inName || inNameKr || inAddr || inCat || inDesc)) return false;
-        }
-        if(currentNearbyFilter && (!i.lat || !i.lng || getDistance(currentNearbyFilter.lat, currentNearbyFilter.lng, i.lat, i.lng) > currentNearbyFilter.radius)) return false;
-        if(currentNearbyFilter) i._distance = getDistance(currentNearbyFilter.lat, currentNearbyFilter.lng, i.lat, i.lng); else delete i._distance;
-        return true;
-      });
-      if(currentNearbyFilter) items.sort((a,b)=> (a._distance||0)-(b._distance||0));
-      renderFilteredRestaurants(items);
-    } else if(type === 'sight') {
-      let items = [...sights];
-      items = items.filter(i => {
-        if(currentSearchKeyword) {
-          const kw = currentSearchKeyword.toLowerCase();
-          const inName = i.name && i.name.toLowerCase().includes(kw);
-          const inAddr = i.address && i.address.toLowerCase().includes(kw);
-          const inDesc = i.desc && i.desc.toLowerCase().includes(kw);
-          if (!(inName || inAddr || inDesc)) return false;
-        }
-        if(currentNearbyFilter && (!i.lat || !i.lng || getDistance(currentNearbyFilter.lat, currentNearbyFilter.lng, i.lat, i.lng) > currentNearbyFilter.radius)) return false;
-        if(currentNearbyFilter) i._distance = getDistance(currentNearbyFilter.lat, currentNearbyFilter.lng, i.lat, i.lng); else delete i._distance;
-        return true;
-      });
-      if(currentNearbyFilter) items.sort((a,b)=> (a._distance||0)-(b._distance||0));
-      renderFilteredSights(items);
-    } else if(type === 'hotel') {
-      let items = [...hotels];
-      items = items.filter(i => {
-        if(currentSearchKeyword) {
-          const kw = currentSearchKeyword.toLowerCase();
-          const inName = i.name && i.name.toLowerCase().includes(kw);
-          const inAddr = i.address && i.address.toLowerCase().includes(kw);
-          const inDesc = i.desc && i.desc.toLowerCase().includes(kw);
-          const inStars = i.stars && (`${i.stars}성급`).includes(kw);
-          if (!(inName || inAddr || inDesc || inStars)) return false;
-        }
-        if(currentNearbyFilter && (!i.lat || !i.lng || getDistance(currentNearbyFilter.lat, currentNearbyFilter.lng, i.lat, i.lng) > currentNearbyFilter.radius)) return false;
-        if(currentNearbyFilter) i._distance = getDistance(currentNearbyFilter.lat, currentNearbyFilter.lng, i.lat, i.lng); else delete i._distance;
-        return true;
-      });
-      if(currentNearbyFilter) items.sort((a,b)=> (a._distance||0)-(b._distance||0));
-      renderFilteredHotels(items);
-    }
-  }
-  function renderFilteredRestaurants(filtered) {
-    const container = document.getElementById('restaurantList');
-    container.innerHTML = filtered.map(r => {
-      const cat = categories.find(c=>c.name===r.cat) || {emoji:'🍜'};
-      const avg = (()=>{ let rr = reviews.filter(rev=>rev.type==='rest' && rev.targetId===r.id); return rr.length ? (rr.reduce((a,b)=>a+b.rating,0)/rr.length).toFixed(1) : null; })();
-      const distanceHtml = (r._distance !== undefined) ? `<div class="distance">📍 ${r._distance.toFixed(1)}km</div>` : '';
-      return `<div class="rest-card" onclick="openDetail('rest','${r.id}')"><div class="rest-img">${r.image ? `<img src="${r.image}">` : r.emoji}</div><div class="rest-info"><div class="category-tag">${cat.emoji} ${r.cat}</div><div class="rest-name">${r.name}</div><div class="rest-name-sub">${r.nameKr || ''}</div>${avg ? `<div class="stars">★ ${avg}</div>` : ''}<div class="price">${r.price || ''}</div>${distanceHtml}</div></div>`;
-    }).join('');
-  }
-  function renderFilteredSights(filtered) {
-    const container = document.getElementById('sightsList');
-    container.innerHTML = filtered.map(s => {
-      const avg = (()=>{ let rr = sightReviews.filter(rev=>rev.targetId===s.id); return rr.length ? (rr.reduce((a,b)=>a+b.rating,0)/rr.length).toFixed(1) : null; })();
-      const distanceHtml = (s._distance !== undefined) ? `<div class="distance">📍 ${s._distance.toFixed(1)}km</div>` : '';
-      return `<div class="rest-card" onclick="openDetail('sight','${s.id}')"><div class="rest-img">${s.image ? `<img src="${s.image}">` : (s.emoji || '🏛️')}</div><div class="rest-info"><div class="category-tag">🏛️ 관광지</div><div class="rest-name">${s.name}</div>${avg ? `<div class="stars">★ ${avg}</div>` : ''}<div class="price">${s.address ? s.address.slice(0,30)+'...' : ''}</div>${distanceHtml}</div></div>`;
-    }).join('');
-  }
-  function renderFilteredHotels(filtered) {
-    const container = document.getElementById('hotelsList');
-    container.innerHTML = filtered.map(h => {
-      const avg = (()=>{ let rr = hotelReviews.filter(rev=>rev.targetId===h.id); return rr.length ? (rr.reduce((a,b)=>a+b.rating,0)/rr.length).toFixed(1) : null; })();
-      const starIconHtml = getHotelStarsIcon(h.stars);
-      const distanceHtml = (h._distance !== undefined) ? `<div class="distance">📍 ${h._distance.toFixed(1)}km</div>` : '';
-      return `<div class="rest-card" onclick="openDetail('hotel','${h.id}')"><div class="rest-img">${h.image ? `<img src="${h.image}">` : starIconHtml}</div><div class="rest-info"><div class="category-tag">🏨 호텔</div><div class="rest-name">${h.name}</div>${avg ? `<div class="stars">★ ${avg}</div>` : ''}<div class="price">${h.price || ''}</div>${distanceHtml}</div></div>`;
-    }).join('');
-  }
-  function renderRestaurants() { currentSearchKeyword = ''; currentNearbyFilter = null; document.getElementById('searchInput').value = ''; applyFiltersAndRender('rest'); }
-  function renderSights() { currentSearchKeyword = ''; currentNearbyFilter = null; document.getElementById('searchInput').value = ''; applyFiltersAndRender('sight'); }
-  function renderHotels() { currentSearchKeyword = ''; currentNearbyFilter = null; document.getElementById('searchInput').value = ''; applyFiltersAndRender('hotel'); }
-  function performSearch() { currentSearchKeyword = document.getElementById('searchInput').value.trim().toLowerCase(); const activeTab = document.querySelector('.tab.active').dataset.tab; if (activeTab === 'list') applyFiltersAndRender('rest'); else if (activeTab === 'sights') applyFiltersAndRender('sight'); else if (activeTab === 'hotels') applyFiltersAndRender('hotel'); }
-  function clearSearch() { document.getElementById('searchInput').value = ''; currentSearchKeyword = ''; currentNearbyFilter = null; const activeTab = document.querySelector('.tab.active').dataset.tab; if (activeTab === 'list') applyFiltersAndRender('rest'); else if (activeTab === 'sights') applyFiltersAndRender('sight'); else if (activeTab === 'hotels') applyFiltersAndRender('hotel'); showToast('검색 초기화'); }
-  function searchNearby() { if (!navigator.geolocation) { showToast('위치 서비스 지원 안함'); return; } showToast('위치 가져오는 중...'); navigator.geolocation.getCurrentPosition(pos => { currentNearbyFilter = { lat: pos.coords.latitude, lng: pos.coords.longitude, radius: 3 }; const activeTab = document.querySelector('.tab.active').dataset.tab; if (activeTab === 'list') applyFiltersAndRender('rest'); else if (activeTab === 'sights') applyFiltersAndRender('sight'); else if (activeTab === 'hotels') applyFiltersAndRender('hotel'); showToast(`현재 위치 기준 3km 이내 표시`); }, err => { showToast('위치 권한 필요'); }); }
-
-  // ==================== 리뷰 이미지 처리 ====================
-  let currentWriteImages = [];
-  function updateWritePhotoPreview() {
-    const container = document.getElementById('writePhotoPreview');
-    container.innerHTML = currentWriteImages.map((img, idx) => `<div class="photo-preview"><img src="${img}"><div class="remove" onclick="removeWriteImage(${idx})">✕</div></div>`).join('');
-  }
-  function removeWriteImage(idx) { currentWriteImages.splice(idx,1); updateWritePhotoPreview(); }
-  document.getElementById('writePhotoInput').addEventListener('change', function(e) {
-    const files = Array.from(e.target.files);
-    if(currentWriteImages.length + files.length > 9) { showToast('사진은 최대 9장까지 첨부 가능합니다.'); return; }
-    files.forEach(file => { const reader = new FileReader(); reader.onload = ev => { currentWriteImages.push(ev.target.result); updateWritePhotoPreview(); }; reader.readAsDataURL(file); });
-    e.target.value = '';
+// ───── REALTIME SUBSCRIPTIONS ─────
+function subscribeRestaurants(){
+  const {collection,onSnapshot,orderBy,query}=window._fb;
+  const q=query(collection(window._db,'restaurants'),orderBy('createdAt','desc'));
+  onSnapshot(q,snap=>{
+    restaurants=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderRestList(); renderMapGrid(); renderAdRestList(); renderScoreAdjList();
+    document.getElementById('sTotalRest').textContent=restaurants.length;
   });
-  let modalReviewImages = [];
-  function updateModalPhotoPreview() { const container = document.getElementById('modalPhotoPreview'); if(!container) return; container.innerHTML = modalReviewImages.map((img, idx) => `<div class="photo-preview"><img src="${img}"><div class="remove" onclick="removeModalImage(${idx})">✕</div></div>`).join(''); }
-  function removeModalImage(idx) { modalReviewImages.splice(idx,1); updateModalPhotoPreview(); }
+}
+function subscribeReviews(){
+  const {collection,onSnapshot,orderBy,query}=window._fb;
+  const q=query(collection(window._db,'reviews'),orderBy('createdAt','desc'));
+  onSnapshot(q,snap=>{
+    allReviews=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const approved=allReviews.filter(r=>r.status==='approved'||r.status==='featured');
+    const pending=allReviews.filter(r=>r.status==='pending');
+    document.getElementById('sTotalReview').textContent=approved.length;
+    document.getElementById('sPending').textContent=pending.length;
+    const avg=approved.length?(approved.reduce((s,r)=>s+(r.scoreAvg||0),0)/approved.length).toFixed(1):'-';
+    document.getElementById('sAvgScore').textContent=avg;
+    document.getElementById('feedCnt').textContent=`총 ${approved.length}개 리뷰`;
+    renderFeed(); renderReviewAdminList();
+    if(currentRestId) renderDetailReviews(currentRestId);
+  });
+}
 
-  // ==================== 갤러리 모달 ====================
-  function createGalleryModal() {
-    if(document.getElementById('galleryModal')) return;
-    const galleryDiv = document.createElement('div');
-    galleryDiv.id = 'galleryModal';
-    galleryDiv.style.cssText = 'display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.92); z-index:1001; flex-direction:column;';
-    galleryDiv.innerHTML = `
-      <div style="display:flex; justify-content:space-between; padding:16px 20px;">
-        <span id="galleryTitle" style="color:white; font-size:15px;"></span>
-        <button onclick="document.getElementById('galleryModal').style.display='none'" style="background:rgba(255,255,255,0.15); border:none; color:white; width:34px; height:34px; border-radius:50%; font-size:20px; cursor:pointer;">✕</button>
+// ───── RESTAURANT LIST ─────
+function renderRestList(){
+  const el=document.getElementById('restList');
+  let list=restaurants.filter(r=>{
+    const mc=!currentFilter||r.category?.includes(currentFilter)||r.tags?.includes(currentFilter);
+    const mq=!currentSearch||r.name?.includes(currentSearch)||r.nameKr?.includes(currentSearch)||r.category?.includes(currentSearch);
+    return mc&&mq;
+  });
+  if(!list.length){
+    el.innerHTML=`<div class="empty"><div class="empty-ico">🍜</div><div class="empty-title">등록된 맛집이 없어요</div><div class="empty-sub">관리자가 맛집을 추가하면<br>여기에 표시됩니다</div></div>`;
+    return;
+  }
+  el.innerHTML=list.map(r=>{
+    const rvs=allReviews.filter(rv=>rv.restId===r.id&&(rv.status==='approved'||rv.status==='featured'));
+    const avg=rvs.length?(rvs.reduce((s,rv)=>s+(rv.scoreAvg||0),0)/rvs.length).toFixed(1):'-';
+    const score=r.adjustedScore||avg;
+    const img=r.photoUrl
+      ?`<img class="rimg" src="${r.photoUrl}" onerror="this.outerHTML='<div class=rimg style=font-size:30px>${r.emoji||'🍜'}</div>'">`
+      :`<div class="rimg" style="font-size:30px;">${r.emoji||'🍜'}</div>`;
+    const tag=r.tags?`<span class="rtag">${r.tags.split(',')[0].trim()}</span>`:'';
+    return `<div class="rcard" onclick="openDetail('${r.id}')">
+      ${img}
+      <div class="rinfo">
+        <div class="rname">${r.name||''}</div>
+        <div class="rkr">${r.nameKr||''}</div>
+        <div class="rcat">${r.category||''}</div>
+        <div class="rmeta"><span class="stars">★ ${score}</span><span class="rcnt">${rvs.length}개</span>${tag}</div>
+        <div class="rfooter"><span class="rdist">📍 ${r.address||''}</span><span class="rprice">${r.price||''}</span></div>
       </div>
-      <div style="flex:1; display:flex; align-items:center; justify-content:center; position:relative;">
-        <button id="galleryPrev" style="position:absolute; left:8px; background:rgba(255,255,255,0.15); border:none; color:white; width:38px; height:38px; border-radius:50%; font-size:20px; cursor:pointer;">‹</button>
-        <img id="galleryMainImg" style="max-width:90%; max-height:60vh; object-fit:contain; border-radius:12px;">
-        <button id="galleryNext" style="position:absolute; right:8px; background:rgba(255,255,255,0.15); border:none; color:white; width:38px; height:38px; border-radius:50%; font-size:20px; cursor:pointer;">›</button>
+    </div>`;
+  }).join('');
+}
+
+function filterRests(){currentSearch=document.getElementById('searchInput').value.trim();renderRestList();}
+function setChip(el,f){document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');currentFilter=f;renderRestList();}
+
+// ───── DETAIL ─────
+function openDetail(id){
+  const r=restaurants.find(x=>x.id===id);if(!r)return;
+  currentRestId=id;
+  document.getElementById('restList').style.display='none';
+  document.getElementById('detailView').classList.add('on');
+  document.querySelector('.stabs').style.display='none';
+  document.querySelector('.chips').style.display='none';
+  document.querySelector('.sbar').style.display='none';
+  document.getElementById('mainHdr').style.display='none';
+  const hero=document.getElementById('dHero');
+  hero.innerHTML=r.photoUrl
+    ?`<img src="${r.photoUrl}" style="width:100%;height:100%;object-fit:cover;"><div class="dbadge">${r.tags?.split(',')[0]||''}</div>`
+    :`<span style="font-size:80px;">${r.emoji||'🍜'}</span><div class="dbadge">${r.tags?.split(',')[0]||''}</div>`;
+  document.getElementById('dName').textContent=r.name||'';
+  document.getElementById('dKr').textContent=r.nameKr||'';
+  document.getElementById('dSub').textContent=[r.category,r.address,r.price].filter(Boolean).join(' · ');
+  renderDetailReviews(id);
+  window.scrollTo(0,0);
+}
+function renderDetailReviews(restId){
+  const rvs=allReviews.filter(r=>r.restId===restId&&(r.status==='approved'||r.status==='featured'));
+  const avg=rvs.length?(rvs.reduce((s,r)=>s+(r.scoreAvg||0),0)/rvs.length).toFixed(1):'-';
+  const rest=restaurants.find(x=>x.id===restId);
+  document.getElementById('dScore').textContent=rest?.adjustedScore||avg;
+  document.getElementById('dRevCnt').textContent=rvs.length;
+  document.getElementById('dVisit').textContent=rvs.length?Math.round(rvs.filter(r=>r.tags?.includes('재방문')).length/rvs.length*100)+'%':'-';
+  const el=document.getElementById('dRevList');
+  if(!rvs.length){el.innerHTML='<div style="font-size:12px;color:var(--text2);padding:8px 0;">아직 리뷰가 없어요. 첫 리뷰를 작성해보세요!</div>';return;}
+  el.innerHTML=rvs.slice(0,5).map(rv=>{
+    const st='★'.repeat(Math.round(rv.scoreAvg||3))+'☆'.repeat(5-Math.round(rv.scoreAvg||3));
+    const ph=(rv.photos||[]).map(p=>`<img class="rv-photo" src="${p}">`).join('');
+    const tg=(rv.tags||[]).map(t=>`<span class="ptag">${t}</span>`).join('');
+    return `<div class="rvc">
+      <div class="rvh"><span class="rvr">${rv.author||'익명'} 님${rv.status==='featured'?' ⭐':''}</span><span class="rvs">${st}</span></div>
+      ${ph?`<div class="rv-photos">${ph}</div>`:''}
+      <div class="rvt">${rv.text||''}</div>
+      ${tg?`<div class="ptags" style="margin-top:6px;">${tg}</div>`:''}
+    </div>`;
+  }).join('');
+}
+function closeDetail(){
+  document.getElementById('detailView').classList.remove('on');
+  document.getElementById('restList').style.display='';
+  document.querySelector('.stabs').style.display='';
+  document.querySelector('.chips').style.display='';
+  document.querySelector('.sbar').style.display='';
+  document.getElementById('mainHdr').style.display='';
+  currentRestId=null;
+}
+
+// ───── MAP ─────
+function renderMapGrid(){
+  const el=document.getElementById('mapGrid');if(!el)return;
+  if(!restaurants.length){el.innerHTML='<div style="font-size:12px;color:var(--text2);grid-column:1/-1;padding:16px;text-align:center;">등록된 맛집이 없어요</div>';return;}
+  el.innerHTML=restaurants.slice(0,9).map(r=>`<div class="mpin" onclick="openDetail('${r.id}')"><div class="mpin-e">${r.emoji||'🍜'}</div><div class="mpin-n">${r.nameKr||r.name}</div><div class="mpin-d">${r.address?.split('·').pop()?.trim()||''}</div></div>`).join('');
+}
+
+// ───── FEED ─────
+function setFchip(el,f){document.querySelectorAll('.fchip').forEach(c=>c.classList.remove('on'));el.classList.add('on');feedFilter=f;renderFeed();}
+function renderFeed(){
+  const el=document.getElementById('feedList');
+  let rvs=allReviews.filter(r=>r.status==='approved'||r.status==='featured');
+  if(feedFilter==='photo')rvs=rvs.filter(r=>(r.photos||[]).length>0);
+  else if(feedFilter==='5')rvs=rvs.filter(r=>Math.round(r.scoreAvg||0)===5);
+  else if(feedFilter==='helpful')rvs=[...rvs].sort((a,b)=>(b.helpful||0)-(a.helpful||0));
+  if(!rvs.length){el.innerHTML='<div class="empty"><div class="empty-ico">📝</div><div class="empty-title">아직 리뷰가 없어요</div><div class="empty-sub">첫 리뷰를 작성해보세요!</div></div>';return;}
+  el.innerHTML=rvs.map(rv=>{
+    const rest=restaurants.find(r=>r.id===rv.restId);
+    const st='★'.repeat(Math.round(rv.scoreAvg||3))+'☆'.repeat(5-Math.round(rv.scoreAvg||3));
+    const ph=(rv.photos||[]).map(p=>`<img class="pphoto" src="${p}">`).join('');
+    const tg=(rv.tags||[]).map(t=>`<span class="ptag">${t}</span>`).join('');
+    const dt=rv.createdAt?.toDate?timeAgo(rv.createdAt.toDate()):'최근';
+    const taste=rv.scoreTaste||0,price=rv.scorePrice||0,svc=rv.scoreSvc||0;
+    return `<div class="pcard">
+      <div class="puser">
+        <div class="avatar">🙋</div>
+        <div style="flex:1;">
+          <div class="pname">${rv.author||'익명'} 님${(rv.photos||[]).length?'<span class="vbadge">사진인증</span>':''}${rv.status==='featured'?' ⭐':''}</div>
+          <div style="display:flex;gap:8px;margin-top:2px;"><span class="prest">${rest?.nameKr||rest?.name||''}</span><span class="pstars">${st}</span></div>
+        </div>
+        <span class="pdate">${dt}</span>
       </div>
-      <div id="galleryCaption" style="text-align:center; color:rgba(255,255,255,0.6); font-size:12px; padding:12px;"></div>
-      <div id="galleryThumbs" style="display:flex; gap:8px; overflow-x:auto; padding:12px 16px 24px;"></div>
-    `;
-    document.body.appendChild(galleryDiv);
-    window.galleryModal = galleryDiv;
-  }
-  function openGallery() {
-    if(galleryImages.length === 0) return;
-    const modal = document.getElementById('galleryModal');
-    if(modal) {
-      modal.style.display = 'flex';
-      renderGallery();
-    }
-  }
-  function renderGallery() {
-    const img = galleryImages[galleryIndex];
-    if(!img) return;
-    document.getElementById('galleryMainImg').src = img.src;
-    document.getElementById('galleryCaption').textContent = img.caption;
-    document.getElementById('galleryTitle').textContent = `📷 ${galleryIndex+1} / ${galleryImages.length}`;
-    document.getElementById('galleryPrev').style.display = galleryImages.length > 1 ? 'block' : 'none';
-    document.getElementById('galleryNext').style.display = galleryImages.length > 1 ? 'block' : 'none';
-    const thumbs = document.getElementById('galleryThumbs');
-    thumbs.innerHTML = galleryImages.map((im, i) => `<img src="${im.src}" onclick="galleryIndex=${i}; renderGallery();" style="width:60px; height:60px; object-fit:cover; border-radius:8px; margin:0 2px; cursor:pointer; border:${i===galleryIndex?'2px solid #C9A84C':'2px solid transparent'}; opacity:${i===galleryIndex?'1':'0.6'};"><br>`).join('');
-  }
+      ${ph?`<div class="pphotos">${ph}</div>`:''}
+      <div class="ptxt">${rv.text||''}</div>
+      ${tg?`<div class="ptags">${tg}</div>`:''}
+      ${taste||price||svc?`
+        <div class="srow"><span class="slbl">맛</span><div class="sbar2"><div class="sfill" style="width:${taste*20}%"></div></div><span class="sval">${taste}.0</span></div>
+        <div class="srow"><span class="slbl">가성비</span><div class="sbar2"><div class="sfill" style="width:${price*20}%"></div></div><span class="sval">${price}.0</span></div>
+        <div class="srow"><span class="slbl">친절도</span><div class="sbar2"><div class="sfill" style="width:${svc*20}%"></div></div><span class="sval">${svc}.0</span></div>
+      `:''}
+      <button class="hlp" onclick="toggleHelpful('${rv.id}',this)" data-cnt="${rv.helpful||0}">👍 도움됐어요 ${rv.helpful||0}</button>
+    </div>`;
+  }).join('');
+}
+function toggleHelpful(id,btn){
+  btn.classList.toggle('on');
+  const cnt=parseInt(btn.dataset.cnt)||0;
+  const n=btn.classList.contains('on')?cnt+1:cnt-1;
+  btn.textContent=`👍 도움됐어요 ${n}`;btn.dataset.cnt=n;
+  const{doc,updateDoc}=window._fb;
+  updateDoc(doc(window._db,'reviews',id),{helpful:n});
+}
 
-  // ==================== 상세 모달 (카카오 예약 연결 포함) ====================
-  function openDetail(type, id) {
-    let item, reviewsList, title, content = '';
-    galleryImages = [];
-    if (type === 'rest') {
-      item = restaurants.find(r=>r.id===id);
-      if(!item) return;
-      reviewsList = reviews.filter(r=>r.type==='rest' && r.targetId===id);
-      title = '맛집 상세';
-      if(item.image) galleryImages.push({ src: item.image, caption: '대표 사진' });
-      reviewsList.forEach(rev => {
-        if(rev.images && rev.images.length) {
-          rev.images.forEach(src => galleryImages.push({ src, caption: `${rev.date} 리뷰 사진` }));
-        }
-      });
-      const addressHtml = item.address ? `<span class="icon">📍</span> ${item.address}<div class="map-buttons"><a class="map-btn" onclick="openGoogleMap('${item.address.replace(/'/g, "\\'")}')">Google</a><a class="map-btn" onclick="openGaodeMap('${item.address.replace(/'/g, "\\'")}')">高德地图</a></div>` : '<span class="icon">📍</span> 주소 없음';
-      const hoursHtml = item.hours ? `<div class="modal-info-row"><span class="icon">🕒</span> ${item.hours}</div>` : '';
-      content = `
-        <div class="modal-emoji" onclick="openGallery()">${item.image ? `<img src="${item.image}" style="width:80px; height:80px; object-fit:cover; border-radius:50%;">` : (item.emoji || '🍜')}</div>
-        <div class="modal-name">${item.name}</div><div class="modal-name" style="font-size:16px;">${item.nameKr || ''}</div>
-        <div class="modal-desc">${item.desc || ''}</div>
-        <div class="modal-info-row">${addressHtml}</div>
-        <div class="modal-info-row"><span class="icon">📞</span> ${item.phone || '번호 없음'} ${item.phone ? `<a href="tel:${item.phone.replace(/-/g,'')}" style="margin-left:8px; background:#34c759; color:white; padding:4px 12px; border-radius:20px; text-decoration:none;">전화걸기</a>` : ''}</div>
-        <div class="modal-info-row"><span class="icon">💰</span> ${item.price || ''}</div>
-        ${hoursHtml}
-        <div class="modal-info-row"><span class="icon">🏷️</span> ${categories.find(c=>c.name===item.cat)?.emoji || '🍜'} ${item.cat || ''}</div>
-        <button class="book-btn" onclick="window.open('https://open.kakao.com/o/sYtvh9pi', '_blank')">예약 문의하기</button>
-        <hr style="margin:16px 0;"><div style="font-weight:700; margin-bottom:8px;">💬 리뷰 (${reviewsList.length})</div>
-        <div id="modalReviews">${reviewsList.map(r => `<div class="review-card"><div class="review-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div><div class="review-text">${r.text}</div><div class="review-date">${r.date}</div>${r.images && r.images.length ? `<div class="review-images">${r.images.map(img => `<img src="${img}" class="review-img" onclick="window.open('${img}','_blank')">`).join('')}</div>` : ''}</div>`).join('') || '리뷰가 없습니다.'}</div>
-        <div style="margin-top:16px;"><textarea id="newReviewText" rows="2" placeholder="리뷰 작성..." style="width:100%; padding:8px; border-radius:8px;"></textarea>
-        <select id="newReviewRating" style="width:100%; margin-top:8px; padding:8px;"><option value="5">★★★★★</option><option value="4">★★★★☆</option><option value="3">★★★☆☆</option><option value="2">★★☆☆☆</option><option value="1">★☆☆☆☆</option></select>
-        <div style="margin-top:8px;"><div style="font-size:12px;">📷 사진 (최대 9장)</div><div id="modalPhotoPreview" class="photo-preview-area"></div><div class="add-photo-btn" onclick="document.getElementById('modalPhotoInput').click()">+</div><input type="file" id="modalPhotoInput" accept="image/*" multiple style="display:none;"></div>
-        <button class="btn btn-sm" style="margin-top:8px;" onclick="addModalReview('rest', '${id}')">리뷰 등록</button></div>
-      `;
-    } else if (type === 'sight') {
-      item = sights.find(s=>s.id===id);
-      if(!item) return;
-      reviewsList = sightReviews.filter(r=>r.targetId===id);
-      title = '관광지 상세';
-      if(item.image) galleryImages.push({ src: item.image, caption: '대표 사진' });
-      reviewsList.forEach(rev => {
-        if(rev.images && rev.images.length) {
-          rev.images.forEach(src => galleryImages.push({ src, caption: `${rev.date} 리뷰 사진` }));
-        }
-      });
-      const addressHtml = item.address ? `<span class="icon">📍</span> ${item.address}<div class="map-buttons"><a class="map-btn" onclick="openGoogleMap('${item.address.replace(/'/g, "\\'")}')">Google</a><a class="map-btn" onclick="openGaodeMap('${item.address.replace(/'/g, "\\'")}')">高德地图</a></div>` : '<span class="icon">📍</span> 주소 없음';
-      content = `
-        <div class="modal-emoji" onclick="openGallery()">${item.image ? `<img src="${item.image}" style="width:80px; height:80px; object-fit:cover; border-radius:50%;">` : (item.emoji || '🏛️')}</div>
-        <div class="modal-name">${item.name}</div>
-        <div class="modal-desc">${item.desc || ''}</div>
-        <div class="modal-info-row">${addressHtml}</div>
-        <hr><div style="font-weight:700; margin-bottom:8px;">💬 리뷰 (${reviewsList.length})</div>
-        <div id="modalReviews">${reviewsList.map(r => `<div class="review-card"><div class="review-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div><div class="review-text">${r.text}</div><div class="review-date">${r.date}</div>${r.images && r.images.length ? `<div class="review-images">${r.images.map(img => `<img src="${img}" class="review-img" onclick="window.open('${img}','_blank')">`).join('')}</div>` : ''}</div>`).join('') || '리뷰 없음'}</div>
-        <div style="margin-top:16px;"><textarea id="newReviewText" rows="2" placeholder="리뷰..."></textarea><select id="newReviewRating">...</select>
-        <div id="modalPhotoPreview"></div><div class="add-photo-btn" onclick="document.getElementById('modalPhotoInput').click()">+</div><input type="file" id="modalPhotoInput" accept="image/*" multiple style="display:none;">
-        <button class="btn btn-sm" style="margin-top:8px;" onclick="addModalReview('sight','${id}')">리뷰 등록</button></div>
-      `;
-    } else if (type === 'hotel') {
-      item = hotels.find(h=>h.id===id);
-      if(!item) return;
-      reviewsList = hotelReviews.filter(r=>r.targetId===id);
-      title = '호텔 상세';
-      if(item.image) galleryImages.push({ src: item.image, caption: '대표 사진' });
-      reviewsList.forEach(rev => {
-        if(rev.images && rev.images.length) {
-          rev.images.forEach(src => galleryImages.push({ src, caption: `${rev.date} 리뷰 사진` }));
-        }
-      });
-      const starIconHtml = getHotelStarsIcon(item.stars);
-      const addressHtml = item.address ? `<span class="icon">📍</span> ${item.address}<div class="map-buttons"><a class="map-btn" onclick="openGoogleMap('${item.address.replace(/'/g, "\\'")}')">Google</a><a class="map-btn" onclick="openGaodeMap('${item.address.replace(/'/g, "\\'")}')">高德地图</a></div>` : '<span class="icon">📍</span> 주소 없음';
-      content = `
-        <div class="modal-emoji" onclick="openGallery()">${item.image ? `<img src="${item.image}" style="width:80px; height:80px; object-fit:cover; border-radius:50%;">` : starIconHtml}</div>
-        <div class="modal-name">${item.name}</div>
-        <div class="modal-desc">${item.desc || ''}</div>
-        <div class="modal-info-row"><span class="icon">⭐</span> ${item.stars}성급 호텔</div>
-        <div class="modal-info-row">${addressHtml}</div>
-        <div class="modal-info-row"><span class="icon">📞</span> ${item.phone || '번호 없음'} ${item.phone ? `<a href="tel:${item.phone.replace(/-/g,'')}" style="margin-left:8px; background:#34c759; color:white; padding:4px 12px; border-radius:20px; text-decoration:none;">전화걸기</a>` : ''}</div>
-        <div class="modal-info-row"><span class="icon">💰</span> ${item.price || ''}</div>
-        <button class="book-btn" onclick="window.open('https://open.kakao.com/o/sYtvh9pi', '_blank')">예약 문의하기</button>
-        <hr><div style="font-weight:700; margin-bottom:8px;">💬 리뷰 (${reviewsList.length})</div>
-        <div id="modalReviews">${reviewsList.map(r => `<div class="review-card"><div class="review-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div><div class="review-text">${r.text}</div><div class="review-date">${r.date}</div>${r.images && r.images.length ? `<div class="review-images">${r.images.map(img => `<img src="${img}" class="review-img" onclick="window.open('${img}','_blank')">`).join('')}</div>` : ''}</div>`).join('') || '리뷰 없음'}</div>
-        <div style="margin-top:16px;"><textarea id="newReviewText" rows="2" placeholder="리뷰..."></textarea><select id="newReviewRating">...</select>
-        <div id="modalPhotoPreview"></div><div class="add-photo-btn" onclick="document.getElementById('modalPhotoInput').click()">+</div><input type="file" id="modalPhotoInput" accept="image/*" multiple style="display:none;">
-        <button class="btn btn-sm" style="margin-top:8px;" onclick="addModalReview('hotel','${id}')">리뷰 등록</button></div>
-      `;
-    }
-    document.getElementById('modalTitle').innerText = title;
-    document.getElementById('modalBody').innerHTML = content;
-    const modalPhotoInput = document.getElementById('modalPhotoInput');
-    if(modalPhotoInput) {
-      modalPhotoInput.addEventListener('change', function(e) {
-        const files = Array.from(e.target.files);
-        if(modalReviewImages.length + files.length > 9) { showToast('최대 9장'); return; }
-        files.forEach(f => { const r = new FileReader(); r.onload = ev => { modalReviewImages.push(ev.target.result); updateModalPhotoPreview(); }; r.readAsDataURL(f); });
-        e.target.value = '';
-      });
-    }
-    document.getElementById('infoModal').classList.add('show');
-    createGalleryModal();
-  }
-
-  async function addModalReview(type, id) {
-    const text = document.getElementById('newReviewText')?.value.trim();
-    const rating = parseInt(document.getElementById('newReviewRating')?.value);
-    if(!text) { showToast('내용 입력'); return; }
-    const newReview = { id: Date.now().toString(), type: type, targetId: id, rating: rating, text: text, date: new Date().toLocaleDateString(), images: [...modalReviewImages] };
-    if(type === 'rest') await db.collection('reviews').add(newReview);
-    else if(type === 'sight') await db.collection('sightReviews').add(newReview);
-    else if(type === 'hotel') await db.collection('hotelReviews').add(newReview);
-    showToast('리뷰 등록됨');
-    modalReviewImages = [];
-    closeModal();
-    openDetail(type, id);
-  }
-  function closeModal() { document.getElementById('infoModal').classList.remove('show'); modalReviewImages = []; }
-
-  // ==================== 일반 리뷰 작성 ====================
-  async function submitReview() {
-    const val = document.getElementById('writeSelect').value;
-    if(!val) { showToast('대상을 선택하세요'); return; }
-    const [type, id] = val.split('_');
-    const rating = parseInt(document.getElementById('writeRating').value);
-    const text = document.getElementById('writeText').value.trim();
-    if(!text) { showToast('내용을 입력하세요'); return; }
-    const newReview = { id: Date.now().toString(), type: type, targetId: id, rating: rating, text: text, date: new Date().toLocaleDateString(), images: [...currentWriteImages] };
-    if(type === 'rest') await db.collection('reviews').add(newReview);
-    else if(type === 'sight') await db.collection('sightReviews').add(newReview);
-    else if(type === 'hotel') await db.collection('hotelReviews').add(newReview);
-    showToast('리뷰 등록 완료');
-    document.getElementById('writeText').value = '';
-    currentWriteImages = [];
-    updateWritePhotoPreview();
-    document.getElementById('writePhotoInput').value = '';
-  }
-
-  // ==================== 리뷰 작성 탭 셀렉트 업데이트 ====================
-  let currentWriteType = 'rest';
-  document.querySelectorAll('.write-tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.write-tab-btn').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      currentWriteType = btn.dataset.write;
-      const select = document.getElementById('writeSelect');
-      if(currentWriteType === 'rest') select.innerHTML = '<option value="">맛집 선택</option>' + restaurants.map(r=>`<option value="rest_${r.id}">${r.nameKr || r.name}</option>`).join('');
-      else if(currentWriteType === 'sight') select.innerHTML = '<option value="">관광지 선택</option>' + sights.map(s=>`<option value="sight_${s.id}">${s.name}</option>`).join('');
-      else if(currentWriteType === 'hotel') select.innerHTML = '<option value="">호텔 선택</option>' + hotels.map(h=>`<option value="hotel_${h.id}">${h.name}</option>`).join('');
-    });
+// ───── WRITE ─────
+function togglePicker(){
+  const el=document.getElementById('restPicker');
+  if(el.style.display==='none'||!el.innerHTML){
+    el.innerHTML=restaurants.length?restaurants.map(r=>`<div class="picker-item" onclick="selectRest('${r.id}')"><span style="font-size:20px;">${r.emoji||'🍜'}</span><div><div style="font-size:13px;font-weight:700;">${r.name}</div><div style="font-size:11px;color:var(--text2);">${r.nameKr||''}</div></div></div>`).join('')
+      :'<div style="padding:16px;font-size:13px;color:var(--text2);">등록된 맛집이 없어요</div>';
+    el.style.display='block';
+  }else el.style.display='none';
+}
+function selectRest(id){
+  selectedRest=id;
+  const r=restaurants.find(x=>x.id===id);
+  document.getElementById('wEmoji').textContent=r?.emoji||'🍜';
+  document.getElementById('wRestName').textContent=r?.name||'';
+  document.getElementById('wRestSub').textContent=r?.nameKr||'';
+  document.getElementById('restPicker').style.display='none';
+}
+function goWriteForRest(){
+  if(currentRestId)selectRest(currentRestId);
+  goTab(document.querySelectorAll('.bni')[2],'write');
+}
+function handlePhotos(input){
+  photoFiles=Array.from(input.files).slice(0,6);
+  const prev=document.getElementById('photoPrev');prev.innerHTML='';
+  photoFiles.forEach((f,i)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const d=document.createElement('div');
+      d.style.cssText='position:relative;display:inline-block;';
+      d.innerHTML=`<img src="${e.target.result}" class="pthumb"><div class="pthumb-x" onclick="removePhoto(${i})">✕</div>`;
+      prev.appendChild(d);
+    };
+    reader.readAsDataURL(f);
   });
+}
+function removePhoto(i){photoFiles.splice(i,1);const fi=document.getElementById('photoInput');fi.value='';handlePhotos({files:photoFiles});}
 
-  // ==================== 관리자 보안 ====================
-  const EMAILJS_PUBLIC_KEY  = 'JXav0Fmz5TUxygyAW';
-  const EMAILJS_SERVICE_ID  = 'service_4yh4zie';
-  const EMAILJS_TEMPLATE_ID = 'template_sqpstnv';
-  const ADMIN_EMAIL         = 'mu0mu@naver.com';
-  if(EMAILJS_PUBLIC_KEY !== 'YOUR_PUBLIC_KEY') emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
-
-  function getFailCount() { return parseInt(localStorage.getItem('adminFailCount')||'0'); }
-  function getLockUntil() { return parseInt(localStorage.getItem('adminLockUntil')||'0'); }
-
-  function openAdminModal() {
-    const lockUntil = getLockUntil();
-    if(lockUntil > Date.now()) { showToast('🔒 ' + Math.ceil((lockUntil-Date.now())/60000) + '분 후 시도하세요'); return; }
-    document.getElementById('adminPassword').value = '';
-    document.getElementById('adminLoginStatus').textContent = '';
-    document.getElementById('adminModal').classList.add('show');
-  }
-
-  async function checkAdminPassword() {
-    const lockUntil = getLockUntil();
-    if(lockUntil > Date.now()) { showToast('🔒 잠금 중'); return; }
-    const pwd = document.getElementById('adminPassword').value;
-    const inputHash = await sha256(pwd);
-    if(inputHash === localStorage.getItem('adminPwHash')) {
-      localStorage.setItem('adminFailCount','0'); localStorage.removeItem('adminLockUntil');
-      document.getElementById('adminModal').classList.remove('show');
-      document.getElementById('adminPanelOverlay').classList.add('show');
-      renderAdminPanel();
-      showToast('✅ 관리자 모드 활성화');
-    } else {
-      const fail = getFailCount() + 1; localStorage.setItem('adminFailCount', String(fail));
-      if(fail >= 5) { localStorage.setItem('adminLockUntil', String(Date.now()+30*60*1000)); localStorage.setItem('adminFailCount','0'); document.getElementById('adminLoginStatus').textContent = '🔒 5회 실패 — 30분 잠금'; }
-      else { document.getElementById('adminLoginStatus').textContent = '❌ 비밀번호 오류 (' + (5-fail) + '회 남음)'; }
+async function submitReview(){
+  if(!selectedRest){showToast('음식점을 선택해주세요');return;}
+  const author=document.getElementById('wAuthor').value.trim();
+  const text=document.getElementById('wText').value.trim();
+  if(!author){showToast('작성자 이름을 입력해주세요');return;}
+  if(text.length<20){showToast('리뷰를 20자 이상 작성해주세요');return;}
+  const taste=parseInt(document.querySelector('input[name=taste]:checked')?.value||3);
+  const price=parseInt(document.querySelector('input[name=price]:checked')?.value||4);
+  const svc=parseInt(document.querySelector('input[name=svc]:checked')?.value||5);
+  const amb=parseInt(document.querySelector('input[name=amb]:checked')?.value||3);
+  const scoreAvg=parseFloat(((taste+price+svc+amb)/4).toFixed(1));
+  const tags=[...document.querySelectorAll('.tagchip.on')].map(t=>t.textContent);
+  const btn=document.getElementById('submitBtn');btn.textContent='제출 중...';btn.disabled=true;
+  try{
+    let photos=[];
+    for(const f of photoFiles){
+      const b64=await toBase64(f);
+      const{ref,uploadString,getDownloadURL}=window._fb;
+      const sr=ref(window._storage,`reviews/${Date.now()}_${f.name}`);
+      await uploadString(sr,b64,'data_url');
+      photos.push(await getDownloadURL(sr));
     }
-  }
-  function closeAdminPanel() { document.getElementById('adminPanelOverlay').classList.remove('show'); }
-
-  // ==================== 이모지 피커 ====================
-  const EMOJI_LIST = [
-    {e:'🥟',l:'만두/딤섬'},{e:'🍜',l:'면'},{e:'🍲',l:'탕'},{e:'🥘',l:'볶음'},{e:'🔥',l:'훠궈'},{e:'🌶️',l:'마라'},
-    {e:'🦆',l:'북경오리'},{e:'🍢',l:'꼬치'},{e:'🐑',l:'양꼬치'},{e:'🦀',l:'해산물'},{e:'🦞',l:'랍스터'},{e:'🍤',l:'새우'},
-    {e:'🐟',l:'생선'},{e:'🥩',l:'육류'},{e:'🍣',l:'일식'},{e:'🍝',l:'양식'},{e:'🏮',l:'야시장'},{e:'🌯',l:'전병'},
-    {e:'🍡',l:'탕후루'},{e:'🧆',l:'튀김'},{e:'🧋',l:'나이차'},{e:'☕',l:'카페'},{e:'🍵',l:'차'},{e:'🥤',l:'음료'},
-    {e:'🍺',l:'맥주'},{e:'🍰',l:'디저트'},{e:'🧁',l:'베이커리'},{e:'🇰🇷',l:'한식'},{e:'🇨🇳',l:'중식'},{e:'🥢',l:'일반중식'},
-    {e:'⭐',l:'특선'},{e:'🏠',l:'가정식'},{e:'🏨',l:'호텔'},{e:'🛎️',l:'럭셔리'},
-  ];
-  let selectedEmoji = '🍜';
-
-  function initEmojiPicker() {
-    const picker = document.getElementById('emojiPicker');
-    if(!picker) return;
-    picker.innerHTML = EMOJI_LIST.map(e =>
-      '<button title="'+e.l+'" onclick="selectEmoji(\''+e.e+'\',this)" style="width:38px;height:38px;border:2px solid #e0d0a0;border-radius:10px;background:white;font-size:20px;cursor:pointer;">'+e.e+'</button>'
-    ).join('');
-    selectEmoji(EMOJI_LIST[0].e, picker.firstElementChild);
-  }
-  function selectEmoji(emoji, btn) {
-    selectedEmoji = emoji;
-    document.getElementById('selectedEmojiDisplay').textContent = emoji;
-    document.querySelectorAll('#emojiPicker button').forEach(b => { b.style.borderColor='#e0d0a0'; b.style.background='white'; });
-    if(btn) { btn.style.borderColor='#C9A84C'; btn.style.background='#FFF8E7'; }
-  }
-
-  // ==================== 관리자 패널 렌더 및 CRUD (간소화 - 기존과 동일) ====================
-  let adminImageData=null, adminSightImageData=null, adminHotelImageData=null;
-  function renderAdminPanel() {
-    document.getElementById('adminLogoPreview').src = currentLogo;
-    initEmojiPicker();
-    updateCatSelect();
-    renderCategoryListAdmin();
-    renderAdminRestList();
-    renderAdminSightList();
-    renderAdminHotelList();
-    resetPwSteps();
-    setupImageInput('restImageInput', d => { adminImageData=d; document.getElementById('restImagePreview').innerHTML='<img src="'+d+'" class="image-preview">'; });
-    setupImageInput('sightImageInput', d => { adminSightImageData=d; document.getElementById('sightImagePreview').innerHTML='<img src="'+d+'" class="image-preview">'; });
-    setupImageInput('hotelImageInput', d => { adminHotelImageData=d; document.getElementById('hotelImagePreview').innerHTML='<img src="'+d+'" class="image-preview">'; });
-  }
-  function setupImageInput(id, cb) { const el = document.getElementById(id); if(el) el.onchange = function(e) { const f=e.target.files[0]; if(f){ const r=new FileReader(); r.onload=ev=>cb(ev.target.result); r.readAsDataURL(f); } }; }
-  function updateCatSelect() { const sel = document.getElementById('restCat'); if(sel) sel.innerHTML = categories.map(c=>'<option value="'+c.name+'">'+c.emoji+' '+c.name+'</option>').join(''); }
-  function renderCategoryListAdmin() { const c = document.getElementById('categoryList'); if(c) c.innerHTML = categories.map((cat,i)=>`<div class="category-item"><span>${cat.emoji} ${cat.name}</span><div><button class="btn-sm btn-warning" onclick="editCategory(${i})">✏️</button> <button class="btn-sm btn-danger" onclick="deleteCategory(${i})">🗑️</button></div></div>`).join(''); }
-  async function addCategory() { const name=document.getElementById('newCatName').value.trim(); if(!name) return; const emoji=selectedEmoji; if(categories.some(c=>c.name===name)){showToast('이미 존재');return;} const newCat = { name, emoji }; const docRef = await db.collection('categories').add(newCat); categories.push({ id: docRef.id, ...newCat }); document.getElementById('newCatName').value=''; updateCatSelect(); renderCategoryListAdmin(); renderRestaurants(); showToast('"'+name+'" 추가됨'); }
-  async function editCategory(i) { const newName=prompt('새 이름', categories[i].name); if(!newName) return; await db.collection('categories').doc(categories[i].id).update({ name: newName }); categories[i].name = newName; updateCatSelect(); renderCategoryListAdmin(); renderRestaurants(); showToast('수정됨'); }
-  async function deleteCategory(i) { if(!confirm('삭제?')) return; await db.collection('categories').doc(categories[i].id).delete(); categories.splice(i,1); updateCatSelect(); renderCategoryListAdmin(); renderRestaurants(); }
-
-  function renderAdminRestList() { const c = document.getElementById('adminRestList'); if(c) c.innerHTML = restaurants.map(r=>`<div class="rest-item-admin"><div><div class="rest-item-admin-name">${r.name}</div><div class="rest-item-admin-detail">${r.nameKr||''} · ${r.cat||''} · ${r.address||'주소없음'}</div></div><div><button class="btn-sm btn-warning" onclick="editRestaurant('${r.id}')">✏️</button> <button class="btn-sm btn-danger" onclick="deleteRestaurant('${r.id}')">🗑️</button></div></div>`).join(''); }
-  async function addRestaurant() { const name=document.getElementById('restName').value.trim(), nameKr=document.getElementById('restNameKr').value.trim(); if(!name||!nameKr){showToast('이름 입력');return;} const cat=document.getElementById('restCat').value; const newRest = { name, nameKr, cat, emoji: categories.find(c=>c.name===cat)?.emoji||'🍜', price: document.getElementById('restPrice').value.trim(), address: document.getElementById('restAddress').value.trim(), phone: document.getElementById('restPhone').value.trim(), hours: document.getElementById('restHours').value.trim(), desc: document.getElementById('restDesc').value.trim(), image: adminImageData||null, lat: null, lng: null }; await db.collection('restaurants').add(newRest); clearRestForm(); showToast('맛집 등록됨'); }
-  async function editRestaurant(id) { const r=restaurants.find(r=>r.id===id); if(!r) return; document.getElementById('restName').value=r.name; document.getElementById('restNameKr').value=r.nameKr||''; document.getElementById('restCat').value=r.cat||''; document.getElementById('restPrice').value=r.price||''; document.getElementById('restAddress').value=r.address||''; document.getElementById('restPhone').value=r.phone||''; document.getElementById('restHours').value=r.hours||''; document.getElementById('restDesc').value=r.desc||''; if(r.image){adminImageData=r.image;document.getElementById('restImagePreview').innerHTML='<img src="'+r.image+'" class="image-preview">';} await db.collection('restaurants').doc(id).delete(); showToast('수정 후 등록하세요'); }
-  async function deleteRestaurant(id) { if(confirm('삭제?')){ await db.collection('restaurants').doc(id).delete(); showToast('삭제됨'); } }
-  function clearRestForm() { ['restName','restNameKr','restPrice','restAddress','restPhone','restHours','restDesc'].forEach(id=>document.getElementById(id).value=''); document.getElementById('restImagePreview').innerHTML=''; adminImageData=null; }
-
-  function renderAdminSightList() { const c = document.getElementById('adminSightList'); if(c) c.innerHTML = sights.map(s=>`<div class="rest-item-admin"><div><div class="rest-item-admin-name">${s.emoji||'🏛️'} ${s.name}</div><div class="rest-item-admin-detail">${s.address||'주소없음'}</div></div><div><button class="btn-sm btn-warning" onclick="editSight('${s.id}')">✏️</button> <button class="btn-sm btn-danger" onclick="deleteSight('${s.id}')">🗑️</button></div></div>`).join(''); }
-  async function addSight() { const name=document.getElementById('sightName').value.trim(); if(!name){showToast('이름 입력');return;} const newSight = { name, emoji: document.getElementById('sightEmoji').value.trim()||'🏛️', address: document.getElementById('sightAddress').value.trim(), desc: document.getElementById('sightDesc').value.trim(), image: adminSightImageData||null, phone: '', lat: null, lng: null }; await db.collection('sights').add(newSight); clearSightForm(); showToast('관광지 등록됨'); }
-  async function editSight(id) { const s=sights.find(s=>s.id===id); if(!s) return; document.getElementById('sightName').value=s.name; document.getElementById('sightEmoji').value=s.emoji||''; document.getElementById('sightAddress').value=s.address||''; document.getElementById('sightDesc').value=s.desc||''; if(s.image){adminSightImageData=s.image;document.getElementById('sightImagePreview').innerHTML='<img src="'+s.image+'" class="image-preview">';} await db.collection('sights').doc(id).delete(); showToast('수정 후 등록하세요'); }
-  async function deleteSight(id) { if(confirm('삭제?')){ await db.collection('sights').doc(id).delete(); showToast('삭제됨'); } }
-  function clearSightForm() { ['sightName','sightEmoji','sightAddress','sightDesc'].forEach(id=>document.getElementById(id).value=''); document.getElementById('sightImagePreview').innerHTML=''; adminSightImageData=null; }
-
-  function renderAdminHotelList() { const c = document.getElementById('adminHotelList'); if(c) c.innerHTML = hotels.map(h=>`<div class="rest-item-admin"><div><div class="rest-item-admin-name">🏨 ${h.name}</div><div class="rest-item-admin-detail">${h.stars?h.stars+'성급':''} · ${h.address||'주소없음'}</div></div><div><button class="btn-sm btn-warning" onclick="editHotel('${h.id}')">✏️</button> <button class="btn-sm btn-danger" onclick="deleteHotel('${h.id}')">🗑️</button></div></div>`).join(''); }
-  async function addHotel() { const name=document.getElementById('hotelName').value.trim(); if(!name){showToast('이름 입력');return;} const newHotel = { name, stars: parseInt(document.getElementById('hotelStars').value), price: document.getElementById('hotelPrice').value.trim(), address: document.getElementById('hotelAddress').value.trim(), phone: document.getElementById('hotelPhone').value.trim(), desc: document.getElementById('hotelDesc').value.trim(), image: adminHotelImageData||null, lat: null, lng: null }; await db.collection('hotels').add(newHotel); clearHotelForm(); showToast('호텔 등록됨'); }
-  async function editHotel(id) { const h=hotels.find(h=>h.id===id); if(!h) return; document.getElementById('hotelName').value=h.name; document.getElementById('hotelStars').value=String(h.stars||5); document.getElementById('hotelPrice').value=h.price||''; document.getElementById('hotelAddress').value=h.address||''; document.getElementById('hotelPhone').value=h.phone||''; document.getElementById('hotelDesc').value=h.desc||''; if(h.image){adminHotelImageData=h.image;document.getElementById('hotelImagePreview').innerHTML='<img src="'+h.image+'" class="image-preview">';} await db.collection('hotels').doc(id).delete(); showToast('수정 후 등록하세요'); }
-  async function deleteHotel(id) { if(confirm('삭제?')){ await db.collection('hotels').doc(id).delete(); showToast('삭제됨'); } }
-  function clearHotelForm() { ['hotelName','hotelPrice','hotelAddress','hotelPhone','hotelDesc'].forEach(id=>document.getElementById(id).value=''); document.getElementById('hotelImagePreview').innerHTML=''; adminHotelImageData=null; }
-
-  async function uploadLogo() { const file=document.getElementById('logoUpload').files[0]; if(file){ const r=new FileReader(); r.onload = async function(e) { const logoUrl = e.target.result; await db.collection('settings').doc('logo').set({ url: logoUrl }); showToast('로고 변경됨'); }; r.readAsDataURL(file); } }
-
-  // ==================== 비밀번호 변경 (EmailJS) ====================
-  let _verifyCode='', _verifyExpiry=0, _verifyPassed=false;
-  function resetPwSteps() { _verifyCode=''; _verifyExpiry=0; _verifyPassed=false; sessionStorage.removeItem('verifyPassed'); ['pwStep1','pwStep2','pwStep3'].forEach((id,i)=>document.getElementById(id).style.display=i===0?'block':'none'); const c=document.getElementById('pwChangeCurrent'); if(c) c.value=''; const v=document.getElementById('pwVerifyCode'); if(v) v.value=''; const s1=document.getElementById('pwStep1Status'); if(s1) s1.textContent=''; const s2=document.getElementById('pwStep2Status'); if(s2) s2.textContent=''; }
-  async function requestEmailCode() { const cur=document.getElementById('pwChangeCurrent').value; const status=document.getElementById('pwStep1Status'); if(!cur){status.textContent='⚠️ 현재 비밀번호를 입력하세요';status.style.color='#dc3545';return;} if(await sha256(cur)!==localStorage.getItem('adminPwHash')){status.textContent='❌ 비밀번호가 틀렸습니다';status.style.color='#dc3545';return;} _verifyCode=String(Math.floor(100000+Math.random()*900000)); _verifyExpiry=Date.now()+5*60*1000; status.textContent='📨 발송 중...'; status.style.color='#1B2D5B'; try { await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { message:'인증 코드: '+_verifyCode+'\n\n5분간 유효합니다.' }); const [u,d]=ADMIN_EMAIL.split('@'); document.getElementById('pwEmailMasked').textContent=u.slice(0,2)+'***@'+d; document.getElementById('pwStep1').style.display='none'; document.getElementById('pwStep2').style.display='block'; showToast('📧 인증코드 발송됨'); } catch(e) { status.textContent='❌ 발송 실패: '+(e?.text||e?.message||'오류'); status.style.color='#dc3545'; } }
-  function verifyEmailCode() { const input=document.getElementById('pwVerifyCode').value.trim(); const status=document.getElementById('pwStep2Status'); if(!input){status.textContent='⚠️ 코드 입력';status.style.color='#dc3545';return;} if(Date.now()>_verifyExpiry){status.textContent='⏰ 코드 만료';status.style.color='#dc3545';return;} if(input!==_verifyCode){status.textContent='❌ 코드 불일치';status.style.color='#dc3545';return;} _verifyPassed=true; sessionStorage.setItem('verifyPassed','1'); document.getElementById('pwStep2').style.display='none'; document.getElementById('pwStep3').style.display='block'; showToast('✅ 인증 완료'); }
-  async function changeAdminPassword() { const next=document.getElementById('pwChangeNew').value; const conf=document.getElementById('pwChangeConfirm').value; const status=document.getElementById('pwStep3Status'); if(!_verifyPassed&&sessionStorage.getItem('verifyPassed')!=='1'){status.textContent='⚠️ 인증 먼저';status.style.color='#dc3545';return;} if(!next||!conf){status.textContent='⚠️ 모두 입력하세요';status.style.color='#dc3545';return;} if(next.length<6){status.textContent='⚠️ 6자 이상';status.style.color='#dc3545';return;} if(next!==conf){status.textContent='⚠️ 불일치';status.style.color='#dc3545';return;} localStorage.setItem('adminPwHash', await sha256(next)); sessionStorage.removeItem('verifyPassed'); showToast('🔐 비밀번호 변경 완료'); resetPwSteps(); }
-
-  // ==================== 탭 전환 & 검색 이벤트 ====================
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      const target = tab.dataset.tab;
-      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-      tab.classList.add('active');
-      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-      document.getElementById(`panel-${target}`).classList.add('active');
-      currentSearchKeyword = ''; currentNearbyFilter = null; document.getElementById('searchInput').value = '';
-      if(target === 'list') applyFiltersAndRender('rest');
-      else if(target === 'sights') applyFiltersAndRender('sight');
-      else if(target === 'hotels') applyFiltersAndRender('hotel');
-      else if(target === 'write') { const sel = document.getElementById('writeSelect'); if(currentWriteType === 'rest') sel.innerHTML = '<option value="">맛집 선택</option>' + restaurants.map(r=>`<option value="rest_${r.id}">${r.nameKr || r.name}</option>`).join(''); else if(currentWriteType === 'sight') sel.innerHTML = '<option value="">관광지 선택</option>' + sights.map(s=>`<option value="sight_${s.id}">${s.name}</option>`).join(''); else sel.innerHTML = '<option value="">호텔 선택</option>' + hotels.map(h=>`<option value="hotel_${h.id}">${h.name}</option>`).join(''); }
+    const{collection,addDoc,serverTimestamp}=window._fb;
+    await addDoc(collection(window._db,'reviews'),{
+      restId:selectedRest,author,text,tags,photos,
+      scoreTaste:taste,scorePrice:price,scoreSvc:svc,scoreAmb:amb,scoreAvg,
+      status:'pending',helpful:0,createdAt:serverTimestamp()
     });
-  });
-  document.getElementById('searchInput').addEventListener('input', performSearch);
+    showToast('리뷰가 제출되었어요! 검토 후 게시됩니다 ✓');
+    document.getElementById('wText').value='';document.getElementById('wAuthor').value='';
+    document.getElementById('photoPrev').innerHTML='';photoFiles=[];selectedRest=null;
+    document.getElementById('wRestName').textContent='음식점을 선택하세요';
+    document.getElementById('wRestSub').textContent='탭하여 선택';
+    document.getElementById('wEmoji').textContent='🥟';
+  }catch(e){console.error(e);showToast('오류가 발생했어요. 다시 시도해주세요');}
+  btn.textContent='리뷰 제출하기';btn.disabled=false;
+}
+function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});}
 
-  // ==================== 초기화 ====================
-  const DEFAULT_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 50'%3E%3Crect width='200' height='50' fill='%231B2D5B'/%3E%3Ccircle cx='25' cy='25' r='18' stroke='%23C9A84C' stroke-width='2' fill='none'/%3E%3Cpath d='M18 15 L18 35 M18 15 L28 15 C32 15 34 18 34 23 C34 28 32 31 28 31 L18 31' stroke='%23C9A84C' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Ctext x='55' y='22' font-family='Playfair Display' font-size='14' font-weight='bold' fill='white'%3EPLAN MATE%3C/text%3E%3Ctext x='55' y='36' font-size='9' fill='%23C9A84C'%3E计划伴侣%3C/text%3E%3C/svg%3E";
+// ───── ADMIN ─────
+function checkAdmin(){
+  if(document.getElementById('adminPw').value===ADMIN_PW){
+    document.getElementById('adminGate').style.display='none';
+    document.getElementById('adminPanel').style.display='block';
+    showToast('관리자 모드 활성화 ✓');
+  }else showToast('비밀번호가 올바르지 않아요');
+}
+function logoutAdmin(){
+  document.getElementById('adminGate').style.display='';
+  document.getElementById('adminPanel').style.display='none';
+  document.getElementById('adminPw').value='';
+}
+function adtab(el,id){
+  document.querySelectorAll('.adtab').forEach(t=>t.classList.remove('on'));el.classList.add('on');
+  ['ad-stat','ad-add','ad-review','ad-score'].forEach(i=>document.getElementById(i).style.display='none');
+  document.getElementById(id).style.display='';
+}
 
-  async function init() {
-    await loadCategories();
-    await loadRestaurants();
-    await loadReviews();
-    await loadSights();
-    await loadSightReviews();
-    await loadHotels();
-    await loadHotelReviews();
-    await loadLogo();
-    setupRealtimeListeners();
-    createGalleryModal();
+// 맛집 추가
+function handleAdPhoto(input){
+  const f=input.files[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=e=>{adPhotoData=e.target.result;document.getElementById('adPhotoPrev').innerHTML=`<img src="${adPhotoData}" style="width:80px;height:80px;border-radius:8px;object-fit:cover;margin-top:8px;">`;};
+  reader.readAsDataURL(f);
+}
+async function addRestaurant(){
+  const name=document.getElementById('adName').value.trim();
+  const nameKr=document.getElementById('adKr').value.trim();
+  if(!name||!nameKr){showToast('이름을 입력해주세요');return;}
+  const btn=document.getElementById('adAddBtn');btn.textContent='등록 중...';btn.disabled=true;
+  let photoUrl='';
+  if(adPhotoData){
+    try{
+      const{ref,uploadString,getDownloadURL}=window._fb;
+      const sr=ref(window._storage,`restaurants/${Date.now()}.jpg`);
+      await uploadString(sr,adPhotoData,'data_url');
+      photoUrl=await getDownloadURL(sr);
+    }catch(e){console.warn('사진 업로드 실패',e);}
   }
-  init();
+  const{collection,addDoc,serverTimestamp}=window._fb;
+  await addDoc(collection(window._db,'restaurants'),{
+    name,nameKr,
+    category:document.getElementById('adCat').value.trim(),
+    price:document.getElementById('adPrice').value.trim(),
+    address:document.getElementById('adAddr').value.trim(),
+    phone:document.getElementById('adPhone').value.trim(),
+    emoji:document.getElementById('adEmoji').value.trim()||'🍜',
+    tags:document.getElementById('adTag').value.trim(),
+    description:document.getElementById('adDesc').value.trim(),
+    photoUrl,adjustedScore:null,createdAt:serverTimestamp()
+  });
+  showToast(`${nameKr} 등록 완료! ✓`);
+  ['adName','adKr','adCat','adPrice','adAddr','adPhone','adEmoji','adTag','adDesc'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('adPhotoPrev').innerHTML='';adPhotoData=null;
+  btn.textContent='맛집 등록하기';btn.disabled=false;
+}
+
+// 리뷰 관리
+function renderAdRestList(){
+  const el=document.getElementById('adRestList');if(!el)return;
+  if(!restaurants.length){el.innerHTML='<div style="font-size:12px;color:var(--text2);">등록된 맛집이 없어요</div>';return;}
+  el.innerHTML=restaurants.map(r=>{
+    const rvs=allReviews.filter(rv=>rv.restId===r.id&&(rv.status==='approved'||rv.status==='featured'));
+    const avg=rvs.length?(rvs.reduce((s,rv)=>s+(rv.scoreAvg||0),0)/rvs.length).toFixed(1):'-';
+    return `<div style="background:var(--surface);border-radius:var(--rmd);padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:8px;border:.5px solid var(--border);">
+      <span style="font-size:20px;">${r.emoji||'🍜'}</span>
+      <div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.nameKr||r.name}</div>
+      <div style="font-size:10px;color:var(--text2);">리뷰 ${rvs.length}개 · 자동 ${avg} · 조정 ${r.adjustedScore||avg}</div></div>
+      <div style="font-size:18px;font-weight:700;color:var(--navy);">${r.adjustedScore||avg}</div>
+      <button class="bsm red" onclick="deleteRest('${r.id}')" style="font-size:10px;padding:4px 8px;">삭제</button>
+    </div>`;
+  }).join('');
+}
+async function deleteRest(id){
+  if(!confirm('이 맛집을 삭제할까요?'))return;
+  const{doc,deleteDoc}=window._fb;
+  await deleteDoc(doc(window._db,'restaurants',id));
+  showToast('삭제되었어요');
+}
+
+function renderReviewAdminList(){
+  const el=document.getElementById('reviewAdminList');if(!el)return;
+  const pending=allReviews.filter(r=>r.status==='pending');
+  if(!pending.length){el.innerHTML='<div style="font-size:12px;color:var(--text2);padding:8px 0;">검토할 리뷰가 없어요 ✓</div>';return;}
+  el.innerHTML=pending.map(rv=>{
+    const rest=restaurants.find(r=>r.id===rv.restId);
+    const st='★'.repeat(Math.round(rv.scoreAvg||3))+'☆'.repeat(5-Math.round(rv.scoreAvg||3));
+    return `<div class="adcard">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <div><span style="font-size:12px;font-weight:700;color:var(--text);">${rv.author||'익명'} 님</span><span class="sbadge pending">검토 대기</span></div>
+        <div style="text-align:right;"><div style="font-size:11px;color:var(--navy);font-weight:500;">${rest?.nameKr||'알수없음'}</div><div style="color:var(--gold);font-size:11px;">${st}</div></div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:10px;">${rv.text||''}</div>
+      <div style="display:flex;gap:6px;">
+        <button class="bsm navy" onclick="setRevStatus('${rv.id}','approved',this)">✓ 승인</button>
+        <button class="bsm gold" onclick="setRevStatus('${rv.id}','featured',this)">★ 추천</button>
+        <button class="bsm red" onclick="setRevStatus('${rv.id}','rejected',this)">✕ 거절</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function setRevStatus(id,status,btn){
+  const{doc,updateDoc}=window._fb;
+  await updateDoc(doc(window._db,'reviews',id),{status});
+  btn.closest('.adcard').style.opacity='.4';
+  showToast(status==='approved'?'승인 ✓':status==='featured'?'추천 리뷰 ★':'거절됨');
+}
+
+function renderScoreAdjList(){
+  const el=document.getElementById('scoreAdjList');if(!el)return;
+  if(!restaurants.length){el.innerHTML='<div style="font-size:12px;color:var(--text2);">등록된 맛집이 없어요</div>';return;}
+  el.innerHTML=restaurants.map(r=>{
+    const rvs=allReviews.filter(rv=>rv.restId===r.id&&(rv.status==='approved'||rv.status==='featured'));
+    const avg=rvs.length?(rvs.reduce((s,rv)=>s+(rv.scoreAvg||0),0)/rvs.length).toFixed(1):'-';
+    const cur=r.adjustedScore||avg;
+    const sv=cur==='-'?35:Math.round(parseFloat(cur)*10);
+    return `<div class="rac">
+      <div class="rac-top"><span style="font-size:24px;">${r.emoji||'🍜'}</span>
+        <div><div style="font-size:13px;font-weight:700;color:var(--text);">${r.nameKr||r.name}</div>
+        <div style="font-size:11px;color:var(--navy);">자동 평점 <b>${avg}</b></div></div>
+        <div style="margin-left:auto;font-size:20px;font-weight:700;color:var(--navy);" id="adjS-${r.id}">${cur}</div>
+      </div>
+      <div class="slrow">
+        <span class="sllbl">최종 평점</span>
+        <input type="range" min="10" max="50" value="${sv}" step="1" oninput="document.getElementById('adjS-${r.id}').textContent=(this.value/10).toFixed(1)">
+        <span class="slval">${cur}</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="bsm navy" onclick="saveAdj('${r.id}',this)">저장</button>
+        <button class="bsm gold" onclick="resetAdj('${r.id}')">자동 초기화</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function saveAdj(id,btn){
+  const card=btn.closest('.rac');
+  const v=(card.querySelector('input[type=range]').value/10).toFixed(1);
+  const{doc,updateDoc}=window._fb;
+  await updateDoc(doc(window._db,'restaurants',id),{adjustedScore:v});
+  showToast('저장되었어요 ✓');
+}
+async function resetAdj(id){
+  const{doc,updateDoc}=window._fb;
+  await updateDoc(doc(window._db,'restaurants',id),{adjustedScore:null});
+  showToast('자동 평점으로 초기화');
+}
+
+// ───── NAV ─────
+function goTab(el,id){
+  document.querySelectorAll('.bni').forEach(b=>b.classList.remove('on'));el.classList.add('on');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('sc-'+id).classList.add('on');
+  document.getElementById('mainHdr').style.display=id==='list'?'':'none';
+  window.scrollTo(0,0);
+}
+function switchSub(el,id){
+  document.querySelectorAll('.stab').forEach(t=>t.classList.remove('on'));el.classList.add('on');
+  ['sub-list','sub-map','sub-nearby'].forEach(v=>{const e=document.getElementById(v);if(e)e.style.display='none';});
+  document.getElementById(id).style.display='';
+  document.getElementById('detailView').classList.remove('on');
+  document.getElementById('restList').style.display='';
+}
+
+// ───── UTILS ─────
+function showToast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('on'),2800);
+}
+function timeAgo(date){
+  const d=(Date.now()-date)/1000;
+  if(d<60)return '방금 전';
+  if(d<3600)return Math.floor(d/60)+'분 전';
+  if(d<86400)return Math.floor(d/3600)+'시간 전';
+  return Math.floor(d/86400)+'일 전';
+}
 </script>
 </body>
 </html>
