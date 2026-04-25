@@ -8,7 +8,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     /* ========== 전체 스타일 ========== */
@@ -218,7 +217,7 @@
 </div>
 
 <script>
-  // ==================== Firebase 설정 ====================
+  // ==================== Firebase 설정 (본인 프로젝트로 변경) ====================
   const firebaseConfig = {
     apiKey: "AIzaSyACdsA_2ZcRzMMU1kOJRy2weWJQHpUIC6g",
     authDomain: "planmate-90eae.firebaseapp.com",
@@ -229,7 +228,6 @@
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
-  const storage = firebase.storage();
 
   // ==================== 전역 변수 ====================
   let categories = [], restaurants = [], reviews = [], sights = [], sightReviews = [], hotels = [], hotelReviews = [];
@@ -237,11 +235,6 @@
   let galleryImages = [], galleryIndex = 0, currentModalType = '', currentModalId = '';
   let modalReviewImages = [], currentWriteImages = [];
   let currentWriteType = 'rest';
-  let adminImageData = null, adminSightImageData = null, adminHotelImageData = null;
-  const DEFAULT_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 50'%3E%3Crect width='200' height='50' fill='%231B2D5B'/%3E%3Ccircle cx='25' cy='25' r='18' stroke='%23C9A84C' stroke-width='2' fill='none'/%3E%3Cpath d='M18 15 L18 35 M18 15 L28 15 C32 15 34 18 34 23 C34 28 32 31 28 31 L18 31' stroke='%23C9A84C' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Ctext x='55' y='22' font-family='Playfair Display' font-size='14' font-weight='bold' fill='white'%3EPLAN MATE%3C/text%3E%3Ctext x='55' y='36' font-size='9' fill='%23C9A84C'%3E计划伴侣%3C/text%3E%3C/svg%3E";
-  const EMAILJS_SERVICE_ID = "service_xxxxx"; // 실제 EmailJS 설정 필요
-  const EMAILJS_TEMPLATE_ID = "template_xxxxx";
-  const ADMIN_EMAIL = "admin@example.com";
 
   // ==================== 헬퍼 함수 ====================
   function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2000); }
@@ -252,30 +245,7 @@
   function openGaodeMap(addr) { window.open(`https://uri.amap.com/search?keyword=${encodeURIComponent(addr)}&callnative=1`, '_blank'); }
   function getHotelStarsIcon(stars) { if(stars===5) return '<i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>'; if(stars===4) return '<i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="far fa-star"></i>'; if(stars===3) return '<i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="far fa-star"></i><i class="far fa-star"></i>'; return '<i class="fas fa-hotel"></i>'; }
 
-  // ==================== 이미지 Storage 업로드 ====================
-  async function uploadImagesToStorage(imageDataUrls, type, targetId) {
-    if (!imageDataUrls || imageDataUrls.length === 0) return [];
-    const uploadPromises = imageDataUrls.map(async (dataUrl, index) => {
-      try {
-        const response = await fetch(dataUrl);
-        const blob = await response.blob();
-        const timestamp = Date.now();
-        const randomStr = Math.random().toString(36).substring(2, 8);
-        const fileName = `${type}_${targetId}_${timestamp}_${randomStr}_${index}.jpg`;
-        const storageRef = storage.ref(`reviews/${type}/${fileName}`);
-        const snapshot = await storageRef.put(blob);
-        const downloadURL = await snapshot.ref.getDownloadURL();
-        return downloadURL;
-      } catch (error) {
-        console.error('이미지 업로드 실패:', error);
-        return null;
-      }
-    });
-    const urls = await Promise.all(uploadPromises);
-    return urls.filter(url => url !== null);
-  }
-
-  // ==================== 데이터 로드 ====================
+  // ==================== Firebase 데이터 로드 ====================
   async function loadCategories() { const snap = await db.collection('categories').get(); if(snap.empty){ const def = [{name:"한식",emoji:"🇰🇷"},{name:"중식",emoji:"🥢"},{name:"광둥요리",emoji:"🥘"},{name:"사천요리",emoji:"🌶️"},{name:"북경요리",emoji:"🦆"},{name:"딤섬",emoji:"🥟"},{name:"훠궈",emoji:"🔥"},{name:"양식",emoji:"🍝"},{name:"일식",emoji:"🍣"},{name:"카페",emoji:"☕"}]; for(let c of def) await db.collection('categories').add(c); categories = def; } else categories = snap.docs.map(d=>{return{id:d.id,...d.data()}}); updateCatSelect(); renderCategoryListAdmin(); }
   async function loadRestaurants() { const snap = await db.collection('restaurants').get(); restaurants = snap.docs.map(d=>{return{id:d.id,...d.data()}}); renderRestaurants(); renderAdminRestList(); }
   async function loadReviews() { const snap = await db.collection('reviews').get(); reviews = snap.docs.map(d=>{return{id:d.id,...d.data()}}); }
@@ -415,7 +385,7 @@
     document.getElementById('galleryPrev').style.display = galleryImages.length > 1 ? 'block' : 'none';
     document.getElementById('galleryNext').style.display = galleryImages.length > 1 ? 'block' : 'none';
     const thumbs = document.getElementById('galleryThumbs');
-    thumbs.innerHTML = galleryImages.map((im, i) => `<img src="${im.src}" onclick="galleryIndex=${i}; renderGallery();" style="width:60px; height:60px; object-fit:cover; border-radius:8px; margin:0 2px; cursor:pointer; border:${i===galleryIndex?'2px solid #C9A84C':'2px solid transparent'}; opacity:${i===galleryIndex?'1':'0.6'};">`).join('');
+    thumbs.innerHTML = galleryImages.map((im, i) => `<img src="${im.src}" onclick="galleryIndex=${i}; renderGallery();" style="width:60px; height:60px; object-fit:cover; border-radius:8px; margin:0 2px; cursor:pointer; border:${i===galleryIndex?'2px solid #C9A84C':'2px solid transparent'}; opacity:${i===galleryIndex?'1':'0.6'};"><br>`).join('');
   }
 
   // ==================== 좋아요 및 리뷰 렌더링 ====================
@@ -440,7 +410,7 @@
     `).join('');
   }
 
-  // ==================== 상세 모달 (리뷰 등록 함수 전역) ====================
+  // ==================== 상세 모달 (리뷰 등록 함수 전역으로 명시) ====================
   window.openDetail = function(type, id) {
     currentModalType = type; currentModalId = id;
     let item, reviewsList, title, content = '';
@@ -548,28 +518,25 @@
     const rating = parseInt(document.getElementById('newReviewRating')?.value);
     if (!text) { showToast('리뷰 내용을 입력하세요'); return; }
     if (!rating || rating < 1) { showToast('별점을 선택하세요'); return; }
-
-    showToast('📸 리뷰 등록 중...');
+    const newReview = {
+      id: Date.now().toString(),
+      type: type,
+      targetId: id,
+      rating: rating,
+      text: text,
+      date: new Date().toLocaleDateString(),
+      images: [...modalReviewImages],
+      likes: 0
+    };
     try {
-      const imageUrls = await uploadImagesToStorage(modalReviewImages, type, id);
-      const newReview = {
-        id: Date.now().toString(),
-        type: type,
-        targetId: id,
-        rating: rating,
-        text: text,
-        date: new Date().toLocaleDateString(),
-        images: imageUrls,
-        likes: 0
-      };
       if (type === 'rest') await db.collection('reviews').add(newReview);
       else if (type === 'sight') await db.collection('sightReviews').add(newReview);
       else if (type === 'hotel') await db.collection('hotelReviews').add(newReview);
       showToast('✅ 리뷰가 등록되었습니다!');
       modalReviewImages = [];
-      updateModalPhotoPreview();
       document.getElementById('newReviewText').value = '';
       document.getElementById('newReviewRating').value = '5';
+      updateModalPhotoPreview();
       openDetail(type, id);
     } catch(e) {
       showToast('오류: ' + e.message);
@@ -586,17 +553,8 @@
     const rating = parseInt(document.getElementById('writeRating').value);
     const text = document.getElementById('writeText').value.trim();
     if(!text) { showToast('내용을 입력하세요'); return; }
-
-    showToast('📸 리뷰 등록 중...');
+    const newReview = { id: Date.now().toString(), type, targetId: id, rating, text, date: new Date().toLocaleDateString(), images: [...currentWriteImages], likes: 0 };
     try {
-      const imageUrls = await uploadImagesToStorage(currentWriteImages, type, id);
-      const newReview = {
-        id: Date.now().toString(),
-        type, targetId: id, rating, text,
-        date: new Date().toLocaleDateString(),
-        images: imageUrls,
-        likes: 0
-      };
       if(type === 'rest') await db.collection('reviews').add(newReview);
       else if(type === 'sight') await db.collection('sightReviews').add(newReview);
       else if(type === 'hotel') await db.collection('hotelReviews').add(newReview);
@@ -621,7 +579,7 @@
     });
   });
 
-  // ==================== 관리자 패널 CRUD ====================
+  // ==================== 관리자 패널 CRUD (간략화, 실제로는 모든 함수 필요) ====================
   function updateCatSelect() {
     const sel = document.getElementById('restCat');
     if(sel) sel.innerHTML = categories.map(c=>`<option value="${c.name}">${c.emoji} ${c.name}</option>`).join('');
@@ -758,30 +716,36 @@
   }
   function selectEmoji(emoji, btn) {
     selectedEmoji = emoji;
+    document.getElementById('selectedEmojiDisplay').textContent = emoji;
     document.querySelectorAll('#emojiPicker button').forEach(b => { b.style.borderColor='#e0d0a0'; b.style.background='white'; });
     if(btn) { btn.style.borderColor='#C9A84C'; btn.style.background='#FFF8E7'; }
   }
 
   // ==================== 비밀번호 변경 (EmailJS) ====================
   let _verifyCode='', _verifyExpiry=0, _verifyPassed=false;
-  function resetPwSteps() { _verifyCode=''; _verifyExpiry=0; _verifyPassed=false; sessionStorage.removeItem('verifyPassed'); ['pwStep1','pwStep2','pwStep3'].forEach((id,i)=>document.getElementById(id).style.display=i===0?'block':'none'); const c=document.getElementById('pwChangeCurrent'); if(c) c.value=''; const v=document.getElementById('pwVerifyCode'); if(v) v.value=''; }
+  function resetPwSteps() { _verifyCode=''; _verifyExpiry=0; _verifyPassed=false; sessionStorage.removeItem('verifyPassed'); ['pwStep1','pwStep2','pwStep3'].forEach((id,i)=>document.getElementById(id).style.display=i===0?'block':'none'); const c=document.getElementById('pwChangeCurrent'); if(c) c.value=''; const v=document.getElementById('pwVerifyCode'); if(v) v.value=''; const s1=document.getElementById('pwStep1Status'); if(s1) s1.textContent=''; const s2=document.getElementById('pwStep2Status'); if(s2) s2.textContent=''; }
   async function requestEmailCode() {
     const cur=document.getElementById('pwChangeCurrent').value;
-    if(!cur){showToast('⚠️ 현재 비밀번호 입력');return;}
-    if(await sha256(cur)!==localStorage.getItem('adminPwHash')){showToast('❌ 비밀번호 틀림');return;}
+    const status=document.getElementById('pwStep1Status');
+    if(!cur){status.textContent='⚠️ 현재 비밀번호 입력';return;}
+    if(await sha256(cur)!==localStorage.getItem('adminPwHash')){status.textContent='❌ 비밀번호 틀림';return;}
     _verifyCode=String(Math.floor(100000+Math.random()*900000)); _verifyExpiry=Date.now()+5*60*1000;
+    status.textContent='📨 발송 중...';
     try {
-      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { message:'인증 코드: '+_verifyCode+'\n\n5분간 유효합니다.', to_email: ADMIN_EMAIL });
-      showToast('📧 인증코드 발송됨');
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { message:'인증 코드: '+_verifyCode+'\n\n5분간 유효합니다.' });
+      const [u,d]=ADMIN_EMAIL.split('@');
+      document.getElementById('pwEmailMasked').textContent=u.slice(0,2)+'***@'+d;
       document.getElementById('pwStep1').style.display='none';
       document.getElementById('pwStep2').style.display='block';
-    } catch(e) { showToast('❌ 발송 실패'); }
+      showToast('📧 인증코드 발송됨');
+    } catch(e) { status.textContent='❌ 발송 실패'; }
   }
   function verifyEmailCode() {
     const input=document.getElementById('pwVerifyCode').value.trim();
-    if(!input){showToast('⚠️ 코드 입력');return;}
-    if(Date.now()>_verifyExpiry){showToast('⏰ 코드 만료');return;}
-    if(input!==_verifyCode){showToast('❌ 코드 불일치');return;}
+    const status=document.getElementById('pwStep2Status');
+    if(!input){status.textContent='⚠️ 코드 입력';return;}
+    if(Date.now()>_verifyExpiry){status.textContent='⏰ 코드 만료';return;}
+    if(input!==_verifyCode){status.textContent='❌ 코드 불일치';return;}
     _verifyPassed=true; sessionStorage.setItem('verifyPassed','1');
     document.getElementById('pwStep2').style.display='none';
     document.getElementById('pwStep3').style.display='block';
@@ -790,10 +754,11 @@
   async function changeAdminPassword() {
     const next=document.getElementById('pwChangeNew').value;
     const conf=document.getElementById('pwChangeConfirm').value;
-    if(!_verifyPassed&&sessionStorage.getItem('verifyPassed')!=='1'){showToast('⚠️ 인증 먼저');return;}
-    if(!next||!conf){showToast('⚠️ 모두 입력');return;}
-    if(next.length<6){showToast('⚠️ 6자 이상');return;}
-    if(next!==conf){showToast('⚠️ 불일치');return;}
+    const status=document.getElementById('pwStep3Status');
+    if(!_verifyPassed&&sessionStorage.getItem('verifyPassed')!=='1'){status.textContent='⚠️ 인증 먼저';return;}
+    if(!next||!conf){status.textContent='⚠️ 모두 입력';return;}
+    if(next.length<6){status.textContent='⚠️ 6자 이상';return;}
+    if(next!==conf){status.textContent='⚠️ 불일치';return;}
     localStorage.setItem('adminPwHash', await sha256(next));
     sessionStorage.removeItem('verifyPassed');
     showToast('🔐 비밀번호 변경 완료'); resetPwSteps();
@@ -817,6 +782,7 @@
   document.getElementById('searchInput').addEventListener('input', performSearch);
 
   // ==================== 초기화 ====================
+  const DEFAULT_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 50'%3E%3Crect width='200' height='50' fill='%231B2D5B'/%3E%3Ccircle cx='25' cy='25' r='18' stroke='%23C9A84C' stroke-width='2' fill='none'/%3E%3Cpath d='M18 15 L18 35 M18 15 L28 15 C32 15 34 18 34 23 C34 28 32 31 28 31 L18 31' stroke='%23C9A84C' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Ctext x='55' y='22' font-family='Playfair Display' font-size='14' font-weight='bold' fill='white'%3EPLAN MATE%3C/text%3E%3Ctext x='55' y='36' font-size='9' fill='%23C9A84C'%3E计划伴侣%3C/text%3E%3C/svg%3E";
   async function init() {
     await loadCategories();
     await loadRestaurants();
